@@ -3,14 +3,17 @@
   "version": "0.16.0",
   "author": "PlayCanvas<support@playcanvas.com>",
   "homepage": "https://playcanvas.com",
-  "description": "CLI tool for 3D Gaussian splat format conversion and transformation",
+  "description": "Library and CLI for 3D Gaussian splat format conversion and transformation. Works in Node.js and browsers.",
   "keywords": [
     "3d-gaussian-splatting",
+    "browser",
     "cli",
     "gaussian-splatting",
     "playcanvas",
+    "splat",
     "supersplat",
-    "typescript"
+    "typescript",
+    "webgpu"
   ],
   "license": "MIT",
   "main": "./dist/index.mjs",
@@ -18,20 +21,22 @@
   "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/types/index.d.ts",
       "node": {
-        "import": "./dist/index.mjs",
-        "types": "./dist/types/index.d.ts"
+        "types": "./dist/types/index.d.ts",
+        "import": "./dist/index.mjs"
       },
       "default": {
-        "import": "./dist/index.mjs",
-        "types": "./dist/types/index.d.ts"
+        "types": "./dist/types/index.d.ts",
+        "import": "./dist/index.mjs"
       }
     },
     "./browser": {
-      "import": "./dist/browser.mjs",
-      "types": "./dist/types/browser.d.ts"
+      "types": "./dist/types/browser.d.ts",
+      "import": "./dist/browser.mjs"
     }
   },
+  "sideEffects": false,
   "bin": {
     "splat-transform": "bin/cli.mjs"
   },
