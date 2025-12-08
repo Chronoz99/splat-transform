@@ -13,6 +13,25 @@
     "typescript"
   ],
   "license": "MIT",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "node": {
+        "import": "./dist/index.mjs",
+        "types": "./dist/types/index.d.ts"
+      },
+      "default": {
+        "import": "./dist/index.mjs",
+        "types": "./dist/types/index.d.ts"
+      }
+    },
+    "./browser": {
+      "import": "./dist/browser.mjs",
+      "types": "./dist/types/browser.d.ts"
+    }
+  },
   "bin": {
     "splat-transform": "bin/cli.mjs"
   },
@@ -30,6 +49,7 @@
   "devDependencies": {
     "@playcanvas/eslint-config": "2.1.0",
     "@playcanvas/supersplat-viewer": "1.9.0",
+    "@rollup/plugin-alias": "^6.0.0",
     "@rollup/plugin-json": "6.1.0",
     "@rollup/plugin-node-resolve": "16.0.3",
     "@rollup/plugin-typescript": "12.3.0",
@@ -53,6 +73,7 @@
     "lint": "eslint src rollup.config.mjs eslint.config.mjs",
     "lint:fix": "eslint src rollup.config.mjs eslint.config.mjs --fix",
     "publint": "publint",
+    "test": "node --test test/*.test.mjs",
     "watch": "rollup -c -w"
   },
   "engines": {

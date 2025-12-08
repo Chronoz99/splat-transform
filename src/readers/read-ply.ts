@@ -1,7 +1,5 @@
-import { Buffer } from 'node:buffer';
-import { FileHandle } from 'node:fs/promises';
-
 import { Column, DataTable } from '../data-table';
+import { DataSource } from '../io/data-source';
 
 type PlyProperty = {
     name: string;               // 'x', f_dc_0', etc
@@ -43,7 +41,7 @@ const getDataType = (type: string) => {
 
 // parse the ply header text and return an array of Element structures and a
 // string containing the ply format
-const parseHeader = (data: Buffer): PlyHeader => {
+const parseHeader = (data: Uint8Array): PlyHeader => {
     // decode header and split into lines
     const strings = new TextDecoder('ascii')
     .decode(data)
@@ -108,17 +106,20 @@ const cmp = (a: Uint8Array, b: Uint8Array, aOffset = 0) => {
 const magicBytes = new Uint8Array([112, 108, 121, 10]);                                                 // ply\n
 const endHeaderBytes = new Uint8Array([10, 101, 110, 100, 95, 104, 101, 97, 100, 101, 114, 10]);        // \nend_header\n
 
-const readPly = async (fileHandle: FileHandle): Promise<PlyData> => {
+const readPly = async (source: DataSource): Promise<PlyData> => {
 
     // we don't support ply text header larger than 128k
-    const headerBuf = Buffer.alloc(128 * 1024);
+    const maxHeaderSize = 128 * 1024;
+    const headerBuf = new Uint8Array(maxHeaderSize);
 
     // smallest possible header size
     let headerSize = magicBytes.length + endHeaderBytes.length;
 
-    if ((await fileHandle.read(headerBuf, 0, headerSize)).bytesRead !== headerSize) {
+    const initialBytes = await source.read(0, headerSize);
+    if (initialBytes.byteLength !== headerSize) {
         throw new Error('failed to read file header');
     }
+    headerBuf.set(initialBytes, 0);
 
     if (!cmp(headerBuf, magicBytes)) {
         throw new Error('invalid file header');
@@ -127,9 +128,11 @@ const readPly = async (fileHandle: FileHandle): Promise<PlyData> => {
     // read the rest of the header till we find end header byte pattern
     while (true) {
         // read the next character
-        if ((await fileHandle.read(headerBuf, headerSize++, 1)).bytesRead !== 1) {
+        const nextByte = await source.read(headerSize, 1);
+        if (nextByte.byteLength !== 1) {
             throw new Error('failed to read file header');
         }
+        headerBuf[headerSize++] = nextByte[0];
 
         // check if we've reached the end of the header
         if (cmp(headerBuf, endHeaderBytes, headerSize - endHeaderBytes.length)) {
@@ -142,6 +145,8 @@ const readPly = async (fileHandle: FileHandle): Promise<PlyData> => {
 
     // create a data table for each ply element
     const elements = [];
+    let fileOffset = headerSize;  // Track position across all elements
+
     for (let i = 0; i < header.elements.length; ++i) {
         const element = header.elements[i];
 
@@ -156,12 +161,13 @@ const readPly = async (fileHandle: FileHandle): Promise<PlyData> => {
         // read data in chunks of 1024 rows at a time
         const chunkSize = 1024;
         const numChunks = Math.ceil(element.count / chunkSize);
-        const chunkData = Buffer.alloc(chunkSize * rowSize);
 
         for (let c = 0; c < numChunks; ++c) {
             const numRows = Math.min(chunkSize, element.count - c * chunkSize);
+            const bytesToRead = rowSize * numRows;
 
-            await fileHandle.read(chunkData, 0, rowSize * numRows);
+            const chunkData = await source.read(fileOffset, bytesToRead);
+            fileOffset += bytesToRead;
 
             let offset = 0;
 
@@ -172,7 +178,7 @@ const readPly = async (fileHandle: FileHandle): Promise<PlyData> => {
                 // copy into column data
                 for (let p = 0; p < columns.length; ++p) {
                     const s = sizes[p];
-                    chunkData.copy(buffers[p], rowOffset * s, offset, offset + s);
+                    buffers[p].set(chunkData.subarray(offset, offset + s), rowOffset * s);
                     offset += s;
                 }
             }

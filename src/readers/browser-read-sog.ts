@@ -1,8 +1,10 @@
-import { FileHandle, open } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-
+/**
+ * Browser-compatible SOG reader.
+ * This version only supports bundled .sog files or explicit companion files.
+ * Node.js filesystem fallback is not available.
+ */
 import { Column, DataTable } from '../data-table';
-import { DataSource, BufferSource } from '../io/data-source';
+import { DataSource, BufferSource } from '../io/browser-data-source';
 import { ZipReader } from '../serialize/zip-reader';
 import { WebPCodec } from '../utils/webp-codec';
 
@@ -17,22 +19,13 @@ type Meta = {
 };
 
 /**
- * Options for reading SOG files.
+ * Options for reading SOG files in browser.
  * For bundled .sog files, no additional options needed.
- * For unbundled SOG directories in browser, provide companionFiles map.
+ * For unbundled SOG, provide companionFiles map.
  */
 type ReadSogOptions = {
-    /** Source file path (for Node.js directory-based loading) */
-    sourcePath?: string;
-    /** Map of companion file names to their data (for browser unbundled loading) */
+    /** Map of companion file names to their data (for unbundled loading) */
     companionFiles?: Map<string, ArrayBuffer | Uint8Array>;
-};
-
-const readFileFully = async (fh: FileHandle): Promise<Uint8Array> => {
-    const stat = await fh.stat();
-    const buf = new Uint8Array(stat.size);
-    const { bytesRead } = await fh.read(buf, 0, stat.size, 0);
-    return new Uint8Array(buf.buffer, buf.byteOffset, bytesRead);
 };
 
 const decodeMeans = (lo: Uint8Array, hi: Uint8Array, count: number) => {
@@ -88,17 +81,22 @@ const sigmoidInv = (y: number) => {
     return Math.log(e / (1 - e));
 };
 
-const readSog = async (source: DataSource, options?: ReadSogOptions): Promise<DataTable> => {
+/**
+ * Read a SOG file in browser.
+ * Supports bundled .sog files or unbundled with companionFiles map.
+ * @param source - DataSource for the main file
+ * @param options - Read options including companion files
+ * @returns DataTable containing the splat data
+ */
+const readSogBrowser = async (source: DataSource, options?: ReadSogOptions): Promise<DataTable> => {
     const decoder = await WebPCodec.create();
-    const sourcePath = options?.sourcePath;
     const companionFiles = options?.companionFiles;
 
-    // Helper to read from bundle, companion files map, or folder
+    // Helper to read from bundle or companion files map
     let entries: Map<string, Uint8Array> | null = null;
-    const lowerName = (sourcePath ?? '').toLowerCase();
-    const isBundled = lowerName.endsWith('.sog');
 
-    if (isBundled) {
+    // Try to read as bundled .sog (zip file)
+    try {
         const zr = new ZipReader(source, source.size);
         const list = await zr.list();
         entries = new Map();
@@ -106,8 +104,12 @@ const readSog = async (source: DataSource, options?: ReadSogOptions): Promise<Da
             const data = await e.readData();
             entries.set(e.name, data);
         }
+    } catch {
+        // Not a zip file, must use companion files
+        entries = null;
     }
 
+    // eslint-disable-next-line require-await
     const load = async (name: string): Promise<Uint8Array> => {
         // First check zip entries (bundled .sog)
         if (entries) {
@@ -116,23 +118,14 @@ const readSog = async (source: DataSource, options?: ReadSogOptions): Promise<Da
             return v;
         }
 
-        // Then check companion files map (browser unbundled)
+        // Then check companion files map
         if (companionFiles) {
             const data = companionFiles.get(name);
             if (!data) throw new Error(`Missing companion file '${name}'`);
             return data instanceof Uint8Array ? data : new Uint8Array(data);
         }
 
-        // Fall back to file system (Node.js unbundled)
-        if (!sourcePath) {
-            throw new Error(`Cannot load companion file '${name}': no source path or companion files provided`);
-        }
-        const fh = await open(join(dirname(sourcePath), name), 'r');
-        try {
-            return await readFileFully(fh);
-        } finally {
-            await fh.close();
-        }
+        throw new Error(`Cannot load companion file '${name}': not a bundled .sog and no companion files provided`);
     };
 
     // meta.json
@@ -218,7 +211,6 @@ const readSog = async (source: DataSource, options?: ReadSogOptions): Promise<Da
     const { rgba: c0, width: cw, height: ch } = decoder.decodeRGBA(sh0Webp);
     if (cw * ch < count) throw new Error('SOG sh0 texture too small for count');
     const cCode = new Float32Array(meta.sh0.codebook);
-    const SH_C0 = 0.28209479177387814;
     const dc0 = columns[6].data as Float32Array;
     const dc1 = columns[7].data as Float32Array;
     const dc2 = columns[8].data as Float32Array;
@@ -275,4 +267,4 @@ const readSog = async (source: DataSource, options?: ReadSogOptions): Promise<Da
     return new DataTable(columns);
 };
 
-export { readSog, ReadSogOptions };
+export { readSogBrowser, ReadSogOptions, DataSource, BufferSource };

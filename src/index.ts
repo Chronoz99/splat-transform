@@ -8,7 +8,9 @@ import { Vec3 } from 'playcanvas';
 
 import { version } from '../package.json';
 import { Column, DataTable, TypedArray } from './data-table';
-import { enumerateAdapters } from './gpu/gpu-device';
+import { enumerateAdapters } from './gpu/node-gpu';
+import { NodeFileSink } from './io/data-sink';
+import { NodeFileSource } from './io/data-source';
 import { logger } from './logger';
 import { ProcessAction, processDataTable } from './process';
 import { isCompressedPly, decompressPly } from './readers/decompress-ply';
@@ -95,30 +97,33 @@ const readFile = async (filename: string, options: Options, params: Param[]): Pr
         result = [await readMjs(filename, params)];
     } else {
         const inputFile = await open(filename, 'r');
+        const source = await NodeFileSource.fromFileHandle(inputFile);
 
-        if (inputFormat === 'ksplat') {
-            result = [await readKsplat(inputFile)];
-        } else if (inputFormat === 'splat') {
-            result = [await readSplat(inputFile)];
-        } else if (inputFormat === 'sog') {
-            result = [await readSog(inputFile, filename)];
-        } else if (inputFormat === 'ply') {
-            const ply = await readPly(inputFile);
-            if (isCompressedPly(ply)) {
-                result = [decompressPly(ply)];
-            } else {
-                if (ply.elements.length !== 1 || ply.elements[0].name !== 'vertex') {
-                    throw new Error(`Unsupported data in file '${filename}'`);
+        try {
+            if (inputFormat === 'ksplat') {
+                result = [await readKsplat(source)];
+            } else if (inputFormat === 'splat') {
+                result = [await readSplat(source)];
+            } else if (inputFormat === 'sog') {
+                result = [await readSog(source, { sourcePath: filename })];
+            } else if (inputFormat === 'ply') {
+                const ply = await readPly(source);
+                if (isCompressedPly(ply)) {
+                    result = [decompressPly(ply)];
+                } else {
+                    if (ply.elements.length !== 1 || ply.elements[0].name !== 'vertex') {
+                        throw new Error(`Unsupported data in file '${filename}'`);
+                    }
+                    result = [ply.elements[0].dataTable];
                 }
-                result = [ply.elements[0].dataTable];
+            } else if (inputFormat === 'spz') {
+                result = [await readSpz(source)];
+            } else if (inputFormat === 'lcc') {
+                result = await readLcc(source, { ...options, sourcePath: filename });
             }
-        } else if (inputFormat === 'spz') {
-            result = [await readSpz(inputFile)];
-        } else if (inputFormat === 'lcc') {
-            result = await readLcc(inputFile, filename, options);
+        } finally {
+            await source.close();
         }
-
-        await inputFile.close();
     }
 
     return result;
@@ -136,24 +141,25 @@ const writeFile = async (filename: string, dataTable: DataTable, envDataTable: D
 
     // open the tmp output file
     const outputFile = await open(tmpPathname, 'wx');
+    const sink = new NodeFileSink(outputFile);
 
     try {
         // write the file data
         switch (outputFormat) {
             case 'csv':
-                await writeCsv(outputFile, dataTable);
+                await writeCsv(sink, dataTable);
                 break;
             case 'sog':
-                await writeSog(outputFile, dataTable, filename, options);
+                await writeSog(sink, dataTable, filename, options);
                 break;
             case 'lod':
-                await writeLod(outputFile, dataTable, envDataTable, filename, options);
+                await writeLod(sink, dataTable, envDataTable, filename, options);
                 break;
             case 'compressed-ply':
-                await writeCompressedPly(outputFile, dataTable);
+                await writeCompressedPly(sink, dataTable);
                 break;
             case 'ply':
-                await writePly(outputFile, {
+                await writePly(sink, {
                     comments: [],
                     elements: [{
                         name: 'vertex',
@@ -162,7 +168,7 @@ const writeFile = async (filename: string, dataTable: DataTable, envDataTable: D
                 });
                 break;
             case 'html':
-                await writeHtml(outputFile, dataTable, filename, options);
+                await writeHtml(sink, dataTable, filename, options);
                 break;
         }
 

@@ -1,4 +1,4 @@
-import { FileHandle } from 'node:fs/promises';
+import { DataSource } from '../io/data-source';
 
 type ZipEntry = {
     name: string;
@@ -8,19 +8,18 @@ type ZipEntry = {
 
 // Minimal ZIP reader supporting STORED (method 0), data descriptor (0x08074b50), and UTF-8 filenames.
 class ZipReader {
-    private file: FileHandle;
+    private source: DataSource;
     private cursor: number = 0;
-    private size: number = 0;
+    private _size: number = 0;
 
-    constructor(file: FileHandle, fileSize?: number) {
-        this.file = file;
-        this.size = fileSize ?? 0;
+    constructor(source: DataSource, fileSize?: number) {
+        this.source = source;
+        this._size = fileSize ?? source.size;
     }
 
     private async readAt(pos: number, len: number): Promise<Uint8Array> {
-        const buf = new Uint8Array(len);
-        const { bytesRead } = await this.file.read(buf, 0, len, pos);
-        if (bytesRead !== len) throw new Error('Unexpected EOF while reading ZIP');
+        const buf = await this.source.read(pos, len);
+        if (buf.byteLength !== len) throw new Error('Unexpected EOF while reading ZIP');
         return buf;
     }
 
@@ -38,15 +37,12 @@ class ZipReader {
         // To keep simple and compatible with our writer that streams local headers first, we'll
         // sequentially parse local headers and data descriptors until we hit the central directory
         // which we can ignore for listing (we already have file names and sizes by then).
-        if (this.size === 0) {
-            const stat = await this.file.stat();
-            this.size = stat.size;
-        }
+        const size = this._size;
 
         this.cursor = 0;
         const entries: ZipEntry[] = [];
 
-        while (this.cursor + 30 <= this.size) {
+        while (this.cursor + 30 <= size) {
             const header = await this.read(30);
             const dv = this.dv(header);
             const sig = dv.getUint32(0, true);
@@ -105,8 +101,9 @@ class ZipReader {
                 let pos = dataOffset;
                 let found = false;
                 const sigBytes = new Uint8Array([0x50, 0x4b, 0x07, 0x08]);
-                while (pos < this.size) {
-                    const len = Math.min(chunk, this.size - pos);
+                const fileSize = this._size;  // Use total file size as limit, not the uncompressed size (which is 0 for data descriptor)
+                while (pos < fileSize) {
+                    const len = Math.min(chunk, fileSize - pos);
                     const buf = await this.readAt(pos, len);
                     // search signature
                     for (let i = 0; i + 16 <= buf.length; i++) {

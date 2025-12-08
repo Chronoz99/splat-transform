@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { BoundingBox, Mat4, Quat, Vec3 } from 'playcanvas';
 
 import { TypedArray, DataTable } from '../data-table';
+import { DataSink, NodeFileSink } from '../io/data-sink';
 import { logger } from '../logger';
 import { generateOrdering } from '../ordering';
 import { writeSog } from './write-sog.js';
@@ -135,7 +136,7 @@ const binIndices = (parent: BTreeNode, lod: TypedArray) => {
     return result;
 };
 
-const writeLod = async (fileHandle: FileHandle, dataTable: DataTable, envDataTable: DataTable | null, outputFilename: string, options: Options) => {
+const writeLod = async (sink: DataSink, dataTable: DataTable, envDataTable: DataTable | null, outputFilename: string, options: Options) => {
     const outputDir = dirname(outputFilename);
 
     // ensure top-level output folder exists
@@ -149,11 +150,13 @@ const writeLod = async (fileHandle: FileHandle, dataTable: DataTable, envDataTab
         await mkdir(dirname(pathname), { recursive: true });
 
         const outputFile = await open(pathname, 'w');
+        const outputSink = new NodeFileSink(outputFile);
 
         logger.info(`writing ${pathname}...`);
 
-        await writeSog(outputFile, envDataTable, pathname, options);
+        await writeSog(outputSink, envDataTable, pathname, options);
 
+        await outputSink.close();
         await outputFile.close();
     }
 
@@ -249,7 +252,7 @@ const writeLod = async (fileHandle: FileHandle, dataTable: DataTable, envDataTab
         }
         return value;
     };
-    await fileHandle.write((new TextEncoder()).encode(JSON.stringify(meta, replacer)));
+    await sink.write((new TextEncoder()).encode(JSON.stringify(meta, replacer)));
 
     // write file units
     for (const [lodValue, fileUnits] of lodFiles) {
@@ -283,11 +286,13 @@ const writeLod = async (fileHandle: FileHandle, dataTable: DataTable, envDataTab
 
             // write file unit to sog
             const outputFile = await open(pathname, 'w');
+            const outputSink = new NodeFileSink(outputFile);
 
             logger.info(`writing ${pathname}...`);
 
-            await writeSog(outputFile, unitDataTable, pathname, options, indices);
+            await writeSog(outputSink, unitDataTable, pathname, options, indices);
 
+            await outputSink.close();
             await outputFile.close();
         }
     }

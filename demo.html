@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Splat Transform - Browser Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input[type="file"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .output {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 15px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .status.info { background: #e3f2fd; color: #1565c0; }
+        .status.success { background: #e8f5e9; color: #2e7d32; }
+        .status.error { background: #ffebee; color: #c62828; }
+        .gpu-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        .gpu-status.available { background: #c8e6c9; color: #2e7d32; }
+        .gpu-status.unavailable { background: #ffcdd2; color: #c62828; }
+        .transforms-section {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+        }
+        .transform-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .transform-input input {
+            width: 80px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Splat Transform Browser Demo 
+        <span id="gpu-status" class="gpu-status">Checking GPU...</span>
+    </h1>
+    
+    <div class="card">
+        <h2>Convert Splat File</h2>
+        <div class="form-group">
+            <label for="input-file">Select Input File</label>
+            <input type="file" id="input-file" accept=".ply,.splat,.ksplat,.sog,.spz">
+        </div>
+        <div class="form-group">
+            <label for="input-format">Input Format (auto-detected from filename)</label>
+            <select id="input-format">
+                <option value="">Auto-detect</option>
+                <option value="ply">PLY (.ply)</option>
+                <option value="splat">Splat (.splat)</option>
+                <option value="ksplat">KSplat (.ksplat)</option>
+                <option value="sog">SOG (.sog)</option>
+                <option value="spz">SPZ (.spz)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="output-format">Output Format</label>
+            <select id="output-format">
+                <option value="ply">PLY (.ply)</option>
+                <option value="compressed-ply">Compressed PLY (.ply)</option>
+                <option value="sog">SOG (.sog)</option>
+                <option value="csv">CSV (.csv)</option>
+            </select>
+        </div>
+        
+        <div class="transforms-section">
+            <label><strong>Transforms (optional)</strong></label>
+            <div class="transform-input">
+                <label>Translate:</label>
+                <input type="number" id="translate-x" placeholder="X" step="any">
+                <input type="number" id="translate-y" placeholder="Y" step="any">
+                <input type="number" id="translate-z" placeholder="Z" step="any">
+            </div>
+            <div class="transform-input">
+                <label>Rotate (degrees):</label>
+                <input type="number" id="rotate-x" placeholder="X" step="any">
+                <input type="number" id="rotate-y" placeholder="Y" step="any">
+                <input type="number" id="rotate-z" placeholder="Z" step="any">
+            </div>
+            <div class="transform-input">
+                <label>Scale:</label>
+                <input type="number" id="scale-factor" placeholder="Factor" step="any" value="1">
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <button id="convert-btn" disabled>Convert</button>
+            <button id="read-btn" disabled>Read Info</button>
+        </div>
+        
+        <div id="status" class="status info" style="display: none;"></div>
+        <div id="output" class="output" style="display: none;"></div>
+    </div>
+    
+    <div class="card">
+        <h2>Quick Test</h2>
+        <p>Test basic functionality without a file:</p>
+        <button id="test-btn">Run API Test</button>
+        <div id="test-output" class="output" style="display: none;"></div>
+    </div>
+
+    <script type="module">
+        // Import the browser API
+        import { 
+            read, 
+            write, 
+            convert, 
+            isGpuAvailable, 
+            getGpuAdapters,
+            setQuiet,
+            DataTable,
+            Column
+        } from './dist/browser.mjs';
+        
+        // Enable logging
+        setQuiet(false);
+        
+        // Check GPU availability
+        async function checkGpu() {
+            const gpuStatus = document.getElementById('gpu-status');
+            try {
+                const available = await isGpuAvailable();
+                if (available) {
+                    gpuStatus.textContent = 'GPU Available';
+                    gpuStatus.className = 'gpu-status available';
+                    const adapters = await getGpuAdapters();
+                    console.log('GPU Adapters:', adapters);
+                } else {
+                    gpuStatus.textContent = 'No GPU';
+                    gpuStatus.className = 'gpu-status unavailable';
+                }
+            } catch (e) {
+                gpuStatus.textContent = 'GPU Error';
+                gpuStatus.className = 'gpu-status unavailable';
+                console.error('GPU check error:', e);
+            }
+        }
+        
+        checkGpu();
+        
+        // UI Elements
+        const inputFile = document.getElementById('input-file');
+        const inputFormat = document.getElementById('input-format');
+        const outputFormat = document.getElementById('output-format');
+        const convertBtn = document.getElementById('convert-btn');
+        const readBtn = document.getElementById('read-btn');
+        const statusEl = document.getElementById('status');
+        const outputEl = document.getElementById('output');
+        
+        // Enable buttons when file is selected
+        inputFile.addEventListener('change', () => {
+            convertBtn.disabled = !inputFile.files.length;
+            readBtn.disabled = !inputFile.files.length;
+        });
+        
+        function setStatus(message, type = 'info') {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.style.display = 'block';
+        }
+        
+        function showOutput(text) {
+            outputEl.textContent = text;
+            outputEl.style.display = 'block';
+        }
+        
+        // Get transforms from input
+        function getTransforms() {
+            const transforms = [];
+            
+            const tx = parseFloat(document.getElementById('translate-x').value);
+            const ty = parseFloat(document.getElementById('translate-y').value);
+            const tz = parseFloat(document.getElementById('translate-z').value);
+            if (!isNaN(tx) || !isNaN(ty) || !isNaN(tz)) {
+                transforms.push({ 
+                    type: 'translate', 
+                    x: tx || 0, 
+                    y: ty || 0, 
+                    z: tz || 0 
+                });
+            }
+            
+            const rx = parseFloat(document.getElementById('rotate-x').value);
+            const ry = parseFloat(document.getElementById('rotate-y').value);
+            const rz = parseFloat(document.getElementById('rotate-z').value);
+            if (!isNaN(rx) || !isNaN(ry) || !isNaN(rz)) {
+                transforms.push({ 
+                    type: 'rotate', 
+                    x: rx || 0, 
+                    y: ry || 0, 
+                    z: rz || 0 
+                });
+            }
+            
+            const scale = parseFloat(document.getElementById('scale-factor').value);
+            if (!isNaN(scale) && scale !== 1) {
+                transforms.push({ type: 'scale', factor: scale });
+            }
+            
+            return transforms;
+        }
+        
+        // Read info button
+        readBtn.addEventListener('click', async () => {
+            const file = inputFile.files[0];
+            if (!file) return;
+            
+            try {
+                setStatus('Reading file...', 'info');
+                const startTime = performance.now();
+                
+                const options = {};
+                if (inputFormat.value) {
+                    options.format = inputFormat.value;
+                }
+                
+                const dataTable = await read(file, options);
+                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+                
+                setStatus(`Read complete in ${elapsed}s`, 'success');
+                
+                const info = [
+                    `File: ${file.name}`,
+                    `Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+                    ``,
+                    `Splat Count: ${dataTable.numRows.toLocaleString()}`,
+                    `Columns (${dataTable.columns.length}):`,
+                    ...dataTable.columns.map(c => `  - ${c.name} (${c.dataType})`)
+                ];
+                
+                showOutput(info.join('\n'));
+            } catch (e) {
+                setStatus(`Error: ${e.message}`, 'error');
+                console.error(e);
+            }
+        });
+        
+        // Convert button
+        convertBtn.addEventListener('click', async () => {
+            const file = inputFile.files[0];
+            if (!file) return;
+            
+            try {
+                setStatus('Converting...', 'info');
+                const startTime = performance.now();
+                
+                const transforms = getTransforms();
+                const options = {
+                    outputFormat: outputFormat.value,
+                    transforms: transforms.length > 0 ? transforms : undefined
+                };
+                
+                if (inputFormat.value) {
+                    options.inputFormat = inputFormat.value;
+                }
+                
+                // For SOG format, use CPU if GPU is not available
+                if (outputFormat.value === 'sog') {
+                    options.useGpu = await isGpuAvailable();
+                    options.sogIterations = 8;
+                }
+                
+                const result = await convert(file, options);
+                const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
+                
+                // Create download
+                const ext = {
+                    'ply': '.ply',
+                    'compressed-ply': '.ply',
+                    'sog': '.sog',
+                    'csv': '.csv'
+                }[outputFormat.value];
+                
+                const baseName = file.name.replace(/\.[^.]+$/, '');
+                const outputName = `${baseName}_converted${ext}`;
+                
+                const blob = new Blob([result], { type: 'application/octet-stream' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = outputName;
+                a.click();
+                
+                URL.revokeObjectURL(url);
+                
+                setStatus(`Conversion complete in ${elapsed}s! Downloaded ${outputName}`, 'success');
+                showOutput([
+                    `Input: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`,
+                    `Output: ${outputName} (${(result.byteLength / 1024 / 1024).toFixed(2)} MB)`,
+                    `Transforms applied: ${transforms.length > 0 ? transforms.map(t => t.type).join(', ') : 'none'}`,
+                    `Time: ${elapsed}s`
+                ].join('\n'));
+            } catch (e) {
+                setStatus(`Error: ${e.message}`, 'error');
+                console.error(e);
+            }
+        });
+        
+        // Quick test button
+        document.getElementById('test-btn').addEventListener('click', async () => {
+            const testOutput = document.getElementById('test-output');
+            testOutput.style.display = 'block';
+            
+            const log = (msg) => {
+                testOutput.textContent += msg + '\n';
+            };
+            
+            testOutput.textContent = '';
+            log('Running API tests...\n');
+            
+            try {
+                // Test 1: GPU availability
+                log('1. Checking GPU availability...');
+                const gpuAvailable = await isGpuAvailable();
+                log(`   GPU available: ${gpuAvailable}`);
+                
+                // Test 2: Create a simple DataTable
+                log('\n2. Creating DataTable...');
+                const x = new Float32Array([1, 2, 3, 4, 5]);
+                const y = new Float32Array([0, 0, 0, 0, 0]);
+                const z = new Float32Array([-1, -2, -3, -4, -5]);
+                const dataTable = new DataTable([
+                    new Column('x', x),
+                    new Column('y', y),
+                    new Column('z', z)
+                ]);
+                log(`   Created DataTable with ${dataTable.numRows} rows, ${dataTable.columns.length} columns`);
+                
+                // Test 3: Write to PLY
+                log('\n3. Writing to PLY format...');
+                const plyBuffer = await write(dataTable, 'ply');
+                log(`   PLY size: ${plyBuffer.byteLength} bytes`);
+                
+                // Test 4: Read back
+                log('\n4. Reading PLY back...');
+                const readBack = await read(plyBuffer, { format: 'ply' });
+                log(`   Read back ${readBack.numRows} rows`);
+                
+                // Test 5: Verify data
+                log('\n5. Verifying data...');
+                const xCol = readBack.columns.find(c => c.name === 'x');
+                const firstX = xCol.data[0];
+                log(`   First X value: ${firstX} (expected: 1)`);
+                
+                log('\n✅ All tests passed!');
+            } catch (e) {
+                log(`\n❌ Test failed: ${e.message}`);
+                console.error(e);
+            }
+        });
+    </script>
+</body>
+</html>

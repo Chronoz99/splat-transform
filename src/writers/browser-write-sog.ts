@@ -1,16 +1,15 @@
-import { FileHandle, open } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
-
+/**
+ * Browser-compatible SOG writer.
+ * This version only supports bundled .sog output (single file).
+ */
 import { version } from '../../package.json';
 import { Column, DataTable } from '../data-table';
 import { GpuDevice } from '../gpu/gpu-device';
-import { createDevice, enumerateAdapters } from '../gpu/node-gpu';
-import { DataSink, NodeFileSink, BufferSink } from '../io/data-sink';
+import { createGpuDevice } from '../gpu/gpu-factory';
+import { DataSink, BufferSink } from '../io/browser-data-sink';
 import { logger } from '../logger';
 import { generateOrdering } from '../ordering';
-import { Writer, FileWriter, MemoryWriter } from '../serialize/writer';
 import { ZipWriter } from '../serialize/zip-writer';
-import { Options } from '../types';
 import { kmeans } from '../utils/k-means';
 import { sigmoid } from '../utils/math';
 import { WebPCodec } from '../utils/webp-codec';
@@ -20,7 +19,7 @@ const shNames = new Array(45).fill('').map((_, i) => `f_rest_${i}`);
 const calcMinMax = (dataTable: DataTable, columnNames: string[], indices: Uint32Array) => {
     const columns = columnNames.map(name => dataTable.getColumnByName(name));
     const minMax = columnNames.map(() => [Infinity, -Infinity]);
-    const row = {};
+    const row: Record<string, number> = {};
 
     for (let i = 0; i < indices.length; ++i) {
         const r = dataTable.getRow(indices[i], row, columns);
@@ -40,7 +39,7 @@ const logTransform = (value: number) => {
 };
 
 // no packing
-const identity = (index: number, width: number) => {
+const identity = (index: number, _width: number) => {
     return index;
 };
 
@@ -58,7 +57,7 @@ const generateIndices = (dataTable: DataTable) => {
 // return
 //      - the resulting labels in a new datatable having same shape as the input
 //      - array of 256 centroids
-const cluster1d = async (dataTable: DataTable, iterations: number, device?: GpuDevice) => {
+const cluster1d = async (dataTable: DataTable, iterations: number, device?: GpuDevice | null) => {
     const { numColumns, numRows } = dataTable;
 
     // construct 1d points from the columns of data
@@ -69,11 +68,11 @@ const cluster1d = async (dataTable: DataTable, iterations: number, device?: GpuD
 
     const src = new DataTable([new Column('data', data)]);
 
-    const { centroids, labels } = await kmeans(src, 256, iterations, device);
+    const { centroids, labels } = await kmeans(src, 256, iterations, device ?? undefined);
 
     // order centroids smallest to largest
     const centroidsData = centroids.getColumn(0).data;
-    const order = centroidsData.map((_, i) => i);
+    const order = Array.from(centroidsData, (_, i) => i);
     order.sort((a, b) => centroidsData[a] - centroidsData[b]);
 
     // reorder centroids
@@ -82,7 +81,7 @@ const cluster1d = async (dataTable: DataTable, iterations: number, device?: GpuD
         centroidsData[i] = tmp[order[i]];
     }
 
-    const invOrder = [];
+    const invOrder: number[] = [];
     for (let i = 0; i < order.length; ++i) {
         invOrder[order[i]] = i;
     }
@@ -103,40 +102,39 @@ const cluster1d = async (dataTable: DataTable, iterations: number, device?: GpuD
     };
 };
 
-const writeFile = async (filename: string, data: Uint8Array) => {
-    const outputFile = await open(filename, 'w');
-    outputFile.write(data);
-    await outputFile.close();
-};
-
 let webPCodec: WebPCodec;
-let gpuDevice: GpuDevice;
+let gpuDevice: GpuDevice | null = null;
 
 /**
- * Options for writeSog function
+ * Options for writeSogBrowser function
  */
-type WriteSogOptions = Options & {
-    /** For browser: collect output files in memory instead of writing to filesystem */
-    outputFiles?: Map<string, ArrayBuffer>;
-};
+interface WriteSogBrowserOptions {
+    /** Number of k-means iterations (default: 8) */
+    iterations?: number;
+    /** Use GPU acceleration (default: true) */
+    useGpu?: boolean;
+}
 
-const writeSog = async (
+/**
+ * Write a DataTable to SOG format in browser.
+ * Only supports bundled .sog output (single zip file).
+ *
+ * @param sink - DataSink to write to
+ * @param dataTable - The DataTable to write
+ * @param options - Write options
+ */
+const writeSogBrowser = async (
     sink: DataSink,
     dataTable: DataTable,
-    outputFilename: string,
-    options: WriteSogOptions,
-    indices = generateIndices(dataTable)
+    options: WriteSogBrowserOptions = {}
 ) => {
-    // initialize output stream
-    const isBundle = outputFilename.toLowerCase().endsWith('.sog');
-    const outputFiles = options.outputFiles;  // For browser unbundled mode
+    const iterations = options.iterations ?? 8;
+    const useGpu = options.useGpu ?? true;
+    const indices = generateIndices(dataTable);
 
-    // Create writer - use MemoryWriter for browser bundled mode, FileWriter for Node
-    let writer: Writer;
-    if (isBundle) {
-        writer = sink as Writer;  // DataSink is compatible with Writer interface
-    }
-    const zipWriter = isBundle ? new ZipWriter(writer) : null;
+    // Create a BufferSink to accumulate zip data, then wrap in ZipWriter
+    const bufferSink = new BufferSink();
+    const zipWriter = new ZipWriter(bufferSink);
 
     const numRows = indices.length;
     const width = Math.ceil(Math.sqrt(numRows) / 4) * 4;
@@ -144,11 +142,10 @@ const writeSog = async (
     const channels = 4;
 
     // the layout function determines how the data is packed into the output texture.
-    const layout = identity; // rectChunks;
+    const layout = identity;
 
     const writeWebp = async (filename: string, data: Uint8Array, w = width, h = height) => {
-        const pathname = resolve(dirname(outputFilename), filename);
-        logger.info(`writing '${pathname}'...`);
+        logger.info(`writing '${filename}'...`);
 
         // construct the encoder on first use
         if (!webPCodec) {
@@ -156,20 +153,12 @@ const writeSog = async (
         }
 
         const webp = await webPCodec.encodeLosslessRGBA(data, w, h);
-
-        if (zipWriter) {
-            await zipWriter.file(filename, webp);
-        } else if (outputFiles) {
-            // Browser unbundled mode - store in map
-            outputFiles.set(filename, webp.buffer.slice(webp.byteOffset, webp.byteOffset + webp.byteLength));
-        } else {
-            await writeFile(pathname, webp);
-        }
+        await zipWriter.file(filename, webp);
     };
 
-    const writeTableData = (filename: string, dataTable: DataTable, w = width, h = height) => {
+    const writeTableData = (filename: string, dt: DataTable, w = width, h = height) => {
         const data = new Uint8Array(w * h * channels);
-        const columns = dataTable.columns.map(c => c.data);
+        const columns = dt.columns.map(c => c.data);
         const numColumns = columns.length;
 
         for (let i = 0; i < indices.length; ++i) {
@@ -184,7 +173,7 @@ const writeSog = async (
         return writeWebp(filename, data, w, h);
     };
 
-    const row: any = {};
+    const row: Record<string, number> = {};
 
     const writeMeans = async () => {
         const meansL = new Uint8Array(width * height * channels);
@@ -276,7 +265,7 @@ const writeSog = async (
     const writeScales = async () => {
         const scaleData = await cluster1d(
             new DataTable(['scale_0', 'scale_1', 'scale_2'].map(name => dataTable.getColumnByName(name))),
-            options.iterations,
+            iterations,
             gpuDevice
         );
 
@@ -288,7 +277,7 @@ const writeSog = async (
     const writeColors = async () => {
         const colorData = await cluster1d(
             new DataTable(['f_dc_0', 'f_dc_1', 'f_dc_2'].map(name => dataTable.getColumnByName(name))),
-            options.iterations,
+            iterations,
             gpuDevice
         );
 
@@ -311,23 +300,19 @@ const writeSog = async (
         const shColumns = shColumnNames.map(name => dataTable.getColumnByName(name));
 
         // create a table with just spherical harmonics data
-        // NOTE: this step should also copy the rows referenced in indices, but that's a
-        // lot of duplicate data when it's unneeded (which is currently never). so that
-        // means k-means is clustering the full dataset, instead of the rows referenced in
-        // indices.
         const shDataTable = new DataTable(shColumns);
 
         const paletteSize = Math.min(64, 2 ** Math.floor(Math.log2(indices.length / 1024))) * 1024;
 
         // calculate kmeans
-        const { centroids, labels } = await kmeans(shDataTable, paletteSize, options.iterations, gpuDevice);
+        const { centroids, labels } = await kmeans(shDataTable, paletteSize, iterations, gpuDevice ?? undefined);
 
         // construct a codebook for all spherical harmonic coefficients
-        const codebook = await cluster1d(centroids, options.iterations, gpuDevice);
+        const codebook = await cluster1d(centroids, iterations, gpuDevice);
 
         // write centroids
         const centroidsBuf = new Uint8Array(64 * shCoeffs * Math.ceil(centroids.numRows / 64) * channels);
-        const centroidsRow: any = {};
+        const centroidsRow: Record<string, number> = {};
         for (let i = 0; i < centroids.numRows; ++i) {
             codebook.labels.getRow(i, centroidsRow);
 
@@ -368,28 +353,15 @@ const writeSog = async (
         };
     };
 
-    const shBands = { '9': 1, '24': 2, '-1': 3 }[shNames.findIndex(v => !dataTable.hasColumn(v))] ?? 0;
+    const shBands = { '9': 1, '24': 2, '-1': 3 }[shNames.findIndex(v => !dataTable.hasColumn(v)) as 9 | 24 | -1] ?? 0;
 
     // convert and write attributes
     const meansMinMax = await writeMeans();
     await writeQuaternions();
 
-    // Initialize GPU device if not using CPU mode
-    // device: -1 = auto, -2 = CPU, 0+ = specific GPU index
-    if (options.device !== -2 && !gpuDevice) {
-        let adapterName: string | undefined;
-
-        if (options.device >= 0) {
-            const adapters = await enumerateAdapters();
-            const adapter = adapters[options.device];
-            if (adapter) {
-                adapterName = adapter.name;
-            } else {
-                logger.warn(`GPU adapter index ${options.device} not found, using default`);
-            }
-        }
-
-        gpuDevice = await createDevice(adapterName);
+    // Initialize GPU device if requested
+    if (useGpu && !gpuDevice) {
+        gpuDevice = await createGpuDevice();
     }
 
     const scalesCodebook = await writeScales();
@@ -397,7 +369,7 @@ const writeSog = async (
     const shN = shBands > 0 ? await writeSH(shBands) : null;
 
     // construct meta.json
-    const meta: any = {
+    const meta = {
         version: 2,
         asset: {
             generator: `splat-transform v${version}`
@@ -426,17 +398,15 @@ const writeSog = async (
     };
 
     const metaJson = (new TextEncoder()).encode(JSON.stringify(meta));
+    await zipWriter.file('meta.json', metaJson);
+    await zipWriter.close();
 
-    if (zipWriter) {
-        await zipWriter.file('meta.json', metaJson);
-        await zipWriter.close();
-        await sink.close();
-    } else if (outputFiles) {
-        // Browser unbundled mode - store meta.json in map
-        outputFiles.set('meta.json', metaJson.buffer.slice(metaJson.byteOffset, metaJson.byteOffset + metaJson.byteLength));
-    } else {
-        await sink.write(metaJson);
+    // Get the zip data from the buffer sink and write to the output sink
+    const zipData = await bufferSink.close();
+    if (zipData) {
+        await sink.write(new Uint8Array(zipData));
     }
+    // Note: Do NOT call sink.close() here - the caller is responsible for closing the sink
 };
 
-export { writeSog, WriteSogOptions };
+export { writeSogBrowser, WriteSogBrowserOptions };

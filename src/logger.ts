@@ -56,11 +56,18 @@ class Logger {
 
     /**
      * Write progress indicators directly to stdout (without newline). Suppressed in quiet mode.
+     * In browsers, falls back to console.log since there's no stdout.
      * @param text - The text to write.
      */
     progress(text: string) {
         if (this.level !== 'silent') {
-            process.stdout.write(text);
+            // Check if we're in Node.js (has process.stdout)
+            if (typeof process !== 'undefined' && process.stdout && typeof process.stdout.write === 'function') {
+                process.stdout.write(text);
+            } else {
+                // Browser fallback - log with newline
+                console.log(text);
+            }
         }
     }
 

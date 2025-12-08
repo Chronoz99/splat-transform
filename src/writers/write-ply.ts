@@ -1,5 +1,4 @@
-import { FileHandle } from 'node:fs/promises';
-
+import { DataSink } from '../io/data-sink';
 import { PlyData } from '../readers/read-ply';
 
 const columnTypeToPlyType = (type: string): string => {
@@ -15,7 +14,7 @@ const columnTypeToPlyType = (type: string): string => {
     }
 };
 
-const writePly = async (fileHandle: FileHandle, plyData: PlyData) => {
+const writePly = async (sink: DataSink, plyData: PlyData) => {
     const header = [
         'ply',
         'format binary_little_endian 1.0',
@@ -32,19 +31,19 @@ const writePly = async (fileHandle: FileHandle, plyData: PlyData) => {
     ];
 
     // write the header
-    await fileHandle.write((new TextEncoder()).encode(`${header.flat(3).join('\n')}\n`));
+    await sink.write((new TextEncoder()).encode(`${header.flat(3).join('\n')}\n`));
 
     for (let i = 0; i < plyData.elements.length; ++i) {
         const table = plyData.elements[i].dataTable;
         const columns = table.columns;
-        const buffers = columns.map(c => Buffer.from(c.data.buffer));
+        const buffers = columns.map(c => new Uint8Array(c.data.buffer, c.data.byteOffset, c.data.byteLength));
         const sizes = columns.map(c => c.data.BYTES_PER_ELEMENT);
         const rowSize = sizes.reduce((total, size) => total + size, 0);
 
         // write to file in chunks of 1024 rows
         const chunkSize = 1024;
         const numChunks = Math.ceil(table.numRows / chunkSize);
-        const chunkData = Buffer.alloc(chunkSize * rowSize);
+        const chunkData = new Uint8Array(chunkSize * rowSize);
 
         for (let c = 0; c < numChunks; ++c) {
             const numRows = Math.min(chunkSize, table.numRows - c * chunkSize);
@@ -56,13 +55,13 @@ const writePly = async (fileHandle: FileHandle, plyData: PlyData) => {
 
                 for (let p = 0; p < columns.length; ++p) {
                     const s = sizes[p];
-                    buffers[p].copy(chunkData, offset, rowOffset * s, rowOffset * s + s);
+                    chunkData.set(buffers[p].subarray(rowOffset * s, rowOffset * s + s), offset);
                     offset += s;
                 }
             }
 
             // write the chunk
-            await fileHandle.write(chunkData.subarray(0, offset));
+            await sink.write(chunkData.subarray(0, offset));
         }
     }
 };
