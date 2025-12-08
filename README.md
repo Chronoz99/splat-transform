@@ -16,7 +16,8 @@ SplatTransform is an open source CLI tool for converting and editing Gaussian sp
 🔗 Merge multiple splats  
 🔄 Apply transformations to input splats  
 🎛️ Filter out Gaussians or spherical harmonic bands  
-⚙️ Procedurally generate splats using JavaScript generators
+⚙️ Procedurally generate splats using JavaScript generators  
+🌐 **Works in browsers** with WebGPU acceleration (or CPU fallback)
 
 ## Installation
 
@@ -201,6 +202,228 @@ splat-transform -g cpu input.ply output.sog
 
 > [!WARNING]
 > CPU compression can be significantly slower than GPU compression (often 5-10x slower). Use CPU mode only if GPU drivers are unavailable or problematic.
+
+## Browser API
+
+SplatTransform can run entirely in the browser, enabling client-side splat conversion without a server.
+
+### Installation
+
+```bash
+npm install @playcanvas/splat-transform
+```
+
+### Basic Usage
+
+```typescript
+import { 
+  read, 
+  write, 
+  convert, 
+  merge,
+  isGpuAvailable,
+  setQuiet 
+} from '@playcanvas/splat-transform/browser';
+
+// Read a splat file
+const dataTable = await read(file); // File, Blob, or ArrayBuffer
+console.log(`Loaded ${dataTable.numRows} splats`);
+
+// Convert to another format
+const result = await convert(file, {
+  outputFormat: 'sog',
+  useGpu: await isGpuAvailable()
+});
+
+// Download the result
+const blob = new Blob([result], { type: 'application/octet-stream' });
+```
+
+### API Reference
+
+#### `read(input, options?)`
+
+Read a splat file into a DataTable.
+
+```typescript
+const dataTable = await read(file, { format: 'ply' });
+
+// Options:
+// - format?: 'ply' | 'splat' | 'ksplat' | 'sog' | 'spz' (auto-detected from filename)
+```
+
+#### `write(dataTable, format, options?)`
+
+Write a DataTable to a specific format.
+
+```typescript
+const buffer = await write(dataTable, 'sog', { 
+  useGpu: true,
+  sogIterations: 8 
+});
+
+// Options:
+// - useGpu?: boolean (default: true if available)
+// - sogIterations?: number (default: 8, for SOG format)
+```
+
+#### `convert(input, options)`
+
+Convert a splat file with optional transforms and filters.
+
+```typescript
+const result = await convert(file, {
+  outputFormat: 'ply',
+  useGpu: true,
+  transforms: [
+    { type: 'scale', factor: 2.0 },
+    { type: 'translate', x: 0, y: 10, z: 0 },
+    { type: 'rotate', x: 0, y: 90, z: 0 }
+  ],
+  filters: [
+    { type: 'nan' },
+    { type: 'box', min: [-10, -10, -10], max: [10, 10, 10] },
+    { type: 'sphere', center: [0, 0, 0], radius: 5 },
+    { type: 'value', column: 'opacity', comparator: 'gt', value: 0.5 },
+    { type: 'bands', bands: 2 }
+  ]
+});
+```
+
+#### `merge(inputs, options)`
+
+Merge multiple splat files with per-file transforms.
+
+```typescript
+const result = await merge([
+  { data: file1 },
+  { data: file2, transforms: [{ type: 'translate', x: 10, y: 0, z: 0 }] }
+], {
+  outputFormat: 'sog',
+  useGpu: true
+});
+```
+
+#### `isGpuAvailable()`
+
+Check if WebGPU is available in the browser.
+
+```typescript
+const gpuAvailable = await isGpuAvailable();
+// true in Chrome 113+, Edge 113+, Safari 18+
+// false in Firefox (behind flag), older browsers
+```
+
+#### `getGpuAdapters()`
+
+Get list of available GPU adapters.
+
+```typescript
+const adapters = await getGpuAdapters();
+// ['Apple M1 Pro', 'NVIDIA GeForce RTX 3080', ...]
+```
+
+#### `setQuiet(quiet)`
+
+Enable or disable console logging.
+
+```typescript
+setQuiet(true);  // Suppress logs
+setQuiet(false); // Enable logs (default)
+```
+
+### Supported Formats (Browser)
+
+| Format | Read | Write | Notes |
+| ------ | ---- | ----- | ----- |
+| `.ply` | ✅ | ✅ | Standard and compressed PLY |
+| `.sog` | ✅ | ✅ | Recommended for web |
+| `.splat` | ✅ | ❌ | |
+| `.ksplat` | ✅ | ❌ | |
+| `.spz` | ✅ | ❌ | |
+| `.csv` | ❌ | ✅ | |
+
+> [!NOTE]
+> LCC format and `.mjs` generators are not supported in browsers.
+
+### WebGPU vs CPU
+
+The browser API uses WebGPU for GPU-accelerated k-means clustering when encoding to SOG format. If WebGPU is unavailable, it automatically falls back to CPU.
+
+| Browser | WebGPU Support |
+| ------- | -------------- |
+| Chrome 113+ | ✅ |
+| Edge 113+ | ✅ |
+| Safari 18+ | ✅ |
+| Firefox | 🔄 Behind flag |
+| Older browsers | ❌ (CPU fallback) |
+
+You can force CPU mode for testing:
+
+```typescript
+const result = await convert(file, {
+  outputFormat: 'sog',
+  useGpu: false  // Force CPU
+});
+```
+
+### Example: React Component
+
+```tsx
+import { useState, useEffect } from 'react';
+import { convert, isGpuAvailable } from '@playcanvas/splat-transform/browser';
+
+function SplatConverter() {
+  const [gpuAvailable, setGpuAvailable] = useState(false);
+  
+  useEffect(() => {
+    isGpuAvailable().then(setGpuAvailable);
+  }, []);
+
+  async function handleFile(file: File) {
+    const result = await convert(file, {
+      outputFormat: 'sog',
+      useGpu: gpuAvailable,
+      transforms: [{ type: 'scale', factor: 0.5 }]
+    });
+    
+    // Create download link
+    const blob = new Blob([result]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'converted.sog';
+    a.click();
+  }
+
+  return (
+    <div>
+      <p>GPU: {gpuAvailable ? '✅' : '❌ (using CPU)'}</p>
+      <input type="file" onChange={e => handleFile(e.target.files[0])} />
+    </div>
+  );
+}
+```
+
+### TypeScript Types
+
+Full TypeScript support is included:
+
+```typescript
+import type {
+  ConvertOptions,
+  WriteOptions,
+  ReadOptions,
+  MergeOptions,
+  MergeInput,
+  Transform,
+  Filter,
+  InputFormat,
+  OutputFormat,
+  DataTable,
+  Column
+} from '@playcanvas/splat-transform/browser';
+```
 
 ## Getting Help
 
