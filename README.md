@@ -205,13 +205,31 @@ splat-transform -g cpu input.ply output.sog
 
 ## Browser API
 
+> [!NOTE]
+> Browser support is currently available in [this fork](https://github.com/Chronoz99/splat-transform/tree/feature/browser-support). It may be merged into the main package in the future.
+
 SplatTransform can run entirely in the browser, enabling client-side splat conversion without a server.
 
 ### Installation
 
+Install from the GitHub fork (works with npm, yarn, pnpm):
+
 ```bash
-npm install @playcanvas/splat-transform
+# Install from GitHub branch
+npm install github:Chronoz99/splat-transform#feature/browser-support
 ```
+
+Or add to your `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@playcanvas/splat-transform": "github:Chronoz99/splat-transform#feature/browser-support"
+  }
+}
+```
+
+This works for local development and production deployments (Vercel, Cloudflare, Netlify, etc.).
 
 ### Basic Usage
 
