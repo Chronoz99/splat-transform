@@ -88,6 +88,7 @@
     "test:ui": "vitest --ui",
     "test:node": "node --test test/*.test.mjs",
     "watch": "rollup -c -w",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build && npm run publint"
   },
   "engines": {
