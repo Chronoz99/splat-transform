@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Splat Transform Test App</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      padding: 2rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      color: #333;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      color: #667eea;
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+
+    .status-card {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid #e9ecef;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .status-row:last-child {
+      border-bottom: none;
+    }
+
+    .status-label {
+      font-weight: 600;
+      color: #495057;
+    }
+
+    .status-value {
+      font-family: 'Courier New', monospace;
+      color: #212529;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .badge-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .badge-warning {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .upload-section {
+      margin-top: 2rem;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      display: inline-block;
+      width: 100%;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 1rem;
+      border: 2px dashed #667eea;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      background: #f8f9ff;
+      transition: all 0.3s ease;
+    }
+
+    input[type="file"]:hover {
+      border-color: #764ba2;
+      background: #f0f2ff;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    select, button {
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      border: 1px solid #ced4da;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .progress {
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .progress.active {
+      display: block;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e9ecef;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+
+    .progress-text {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #666;
+      text-align: center;
+    }
+
+    .result {
+      margin-top: 2rem;
+      display: none;
+    }
+
+    .result.active {
+      display: block;
+    }
+
+    .result-card {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+
+    .result-title {
+      font-weight: 600;
+      color: #155724;
+      margin-bottom: 1rem;
+    }
+
+    .result-info {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .result-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .result-label {
+      font-size: 0.85rem;
+      color: #155724;
+      opacity: 0.8;
+      margin-bottom: 0.25rem;
+    }
+
+    .result-value {
+      font-weight: 600;
+      color: #155724;
+      font-size: 1.1rem;
+    }
+
+    .error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      display: none;
+    }
+
+    .error.active {
+      display: block;
+    }
+
+    .gpu-adapters {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: #666;
+    }
+
+    .gpu-adapter {
+      padding: 0.5rem;
+      background: #f8f9fa;
+      border-radius: 4px;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 Splat Transform Test App</h1>
+    <p class="subtitle">Testing the packaged browser version of @playcanvas/splat-transform</p>
+
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-label">Package Status</span>
+        <span class="status-value" id="package-status">
+          <span class="status-badge badge-warning">Loading...</span>
+        </span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">WebGPU Support</span>
+        <span class="status-value" id="gpu-status">
+          <span class="status-badge badge-warning">Checking...</span>
+        </span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Browser</span>
+        <span class="status-value" id="browser-info"></span>
+      </div>
+    </div>
+
+    <div id="gpu-adapters" class="gpu-adapters" style="display: none;"></div>
+
+    <div class="upload-section">
+      <h2 style="margin-bottom: 1rem; color: #495057;">Convert Splat File</h2>
+      
+      <div class="file-input-wrapper">
+        <input 
+          type="file" 
+          id="file-input" 
+          accept=".ply,.splat,.ksplat,.sog,.spz"
+          aria-label="Select splat file"
+        >
+      </div>
+
+      <div class="controls">
+        <select id="output-format" aria-label="Output format">
+          <option value="sog">SOG (Clustered)</option>
+          <option value="compressed-ply">Compressed PLY</option>
+          <option value="ply">PLY</option>
+          <option value="csv">CSV</option>
+        </select>
+        
+        <button id="convert-btn" disabled>Convert File</button>
+      </div>
+
+      <div class="progress" id="progress">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-text" id="progress-text">Processing...</div>
+      </div>
+
+      <div class="error" id="error"></div>
+
+      <div class="result" id="result">
+        <div class="result-card">
+          <div class="result-title">✅ Conversion Complete!</div>
+          <div class="result-info">
+            <div class="result-item">
+              <span class="result-label">Output Size</span>
+              <span class="result-value" id="output-size">-</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Processing Time</span>
+              <span class="result-value" id="processing-time">-</span>
+            </div>
+            <div class="result-item">
+              <span class="result-label">Compression</span>
+              <span class="result-value" id="compression-ratio">-</span>
+            </div>
+          </div>
+          <button id="download-btn" style="margin-top: 1rem; width: 100%;">Download Result</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

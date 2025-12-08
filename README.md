@@ -206,17 +206,23 @@ splat-transform -g cpu input.ply output.sog
 ## Browser API
 
 > [!NOTE]
-> Browser support is currently available in [this fork](https://github.com/Chronoz99/splat-transform/tree/feature/browser-support). It may be merged into the main package in the future.
+> Browser support with enhanced build tooling is available in [this fork](https://github.com/Chronoz99/splat-transform/tree/feature/package-build).
 
-SplatTransform can run entirely in the browser, enabling client-side splat conversion without a server.
+SplatTransform can run entirely in the browser, enabling client-side splat conversion without a server. Features include:
+
+✨ **WebGPU acceleration** for fast SOG compression (2-4x faster)  
+🔄 **CPU fallback** when GPU is unavailable  
+📦 **Zero server dependencies** - all processing happens in the browser  
+🎯 **Full TypeScript support** with comprehensive type definitions  
+🧪 **Battle-tested** with Vite and other modern bundlers
 
 ### Installation
 
-Install from the GitHub fork (works with npm, yarn, pnpm):
+Install directly from the GitHub fork:
 
 ```bash
 # Install from GitHub branch
-npm install github:Chronoz99/splat-transform#feature/browser-support
+npm install github:Chronoz99/splat-transform#feature/package-build
 ```
 
 Or add to your `package.json`:
@@ -224,12 +230,21 @@ Or add to your `package.json`:
 ```json
 {
   "dependencies": {
-    "@playcanvas/splat-transform": "github:Chronoz99/splat-transform#feature/browser-support"
+    "@playcanvas/splat-transform": "github:Chronoz99/splat-transform#feature/package-build"
   }
 }
 ```
 
 This works for local development and production deployments (Vercel, Cloudflare, Netlify, etc.).
+
+### Browser Requirements
+
+| Feature | Chrome | Firefox | Safari | Edge |
+|---------|--------|---------|--------|------|
+| Basic API | 90+ | 88+ | 14+ | 90+ |
+| WebGPU | 113+ | 121+* | 17+ | 113+ |
+
+*Firefox requires `dom.webgpu.enabled` flag in about:config
 
 ### Basic Usage
 

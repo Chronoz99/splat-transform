@@ -1,0 +1,19 @@
+{
+  "name": "splat-transform-test-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@playcanvas/splat-transform": "file:../"
+  },
+  "//": "Uses local build from parent directory. In production, use: github:Chronoz99/splat-transform#feature/package-build",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  }
+}
