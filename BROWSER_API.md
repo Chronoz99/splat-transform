@@ -5,6 +5,7 @@ Complete API reference for `@playcanvas/splat-transform/browser`
 ## Table of Contents
 
 - [Installation](#installation)
+- [Vite Setup](#vite-setup)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
 - [Types](#types)
@@ -20,6 +21,32 @@ Install directly from the GitHub fork (feature/package-build branch):
 ```bash
 npm install github:Chronoz99/splat-transform#feature/package-build
 ```
+
+## Vite Setup
+
+If you're using Vite (recommended), add this configuration:
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  // ... your other config
+  optimizeDeps: {
+    exclude: ['@playcanvas/splat-transform']
+  }
+});
+```
+
+**Why?** This prevents Vite from pre-bundling the package, ensuring proper WASM and WebGPU support.
+
+### Other Bundlers
+
+**Webpack**: No special configuration needed.
+
+**esbuild**: Use `external: ['@playcanvas/splat-transform']` if building a library.
+
+**Rollup**: Configure similar to your current project setup.
 
 ## Quick Start
 
@@ -52,6 +79,76 @@ const a = document.createElement('a');
 a.href = url;
 a.download = 'output.sog';
 a.click();
+```
+
+### Full React Component Example
+
+```typescript
+import { useState, useEffect } from 'react';
+import { convert, isGpuAvailable } from '@playcanvas/splat-transform/browser';
+
+export function SplatCompressor() {
+  const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [gpuAvailable, setGpuAvailable] = useState(false);
+  const [result, setResult] = useState<ArrayBuffer | null>(null);
+
+  useEffect(() => {
+    isGpuAvailable().then(setGpuAvailable);
+  }, []);
+
+  const handleConvert = async () => {
+    if (!file) return;
+
+    try {
+      setProgress(10);
+      
+      const output = await convert(file, {
+        outputFormat: 'sog',
+        useGpu: gpuAvailable,
+        sogIterations: 8
+      });
+      
+      setProgress(100);
+      setResult(output);
+      
+      // Auto-download
+      const blob = new Blob([output], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name.replace(/\.\w+$/, '.sog');
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Conversion failed:', error);
+      alert('Conversion failed: ' + (error as Error).message);
+    } finally {
+      setProgress(0);
+    }
+  };
+
+  return (
+    <div>
+      <h2>SOG Compressor</h2>
+      <p>GPU: {gpuAvailable ? '✅ Available' : '❌ Unavailable (CPU)'}</p>
+      
+      <input
+        type="file"
+        accept=".ply,.splat,.ksplat"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+      />
+      
+      <button onClick={handleConvert} disabled={!file || progress > 0}>
+        {progress > 0 ? `Converting... ${progress}%` : 'Convert to SOG'}
+      </button>
+      
+      {result && (
+        <p>✅ Done: {(result.byteLength / 1024 / 1024).toFixed(2)} MB</p>
+      )}
+    </div>
+  );
+}
 ```
 
 ## API Reference

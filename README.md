@@ -246,6 +246,88 @@ This works for local development and production deployments (Vercel, Cloudflare,
 
 *Firefox requires `dom.webgpu.enabled` flag in about:config
 
+### Vite Setup (Recommended)
+
+If you're using Vite, add this to your `vite.config.ts`:
+
+```typescript
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  // ... your existing config
+  optimizeDeps: {
+    exclude: ['@playcanvas/splat-transform']
+  }
+});
+```
+
+This prevents Vite from pre-bundling the package, which is important for proper WASM/WebGPU support.
+
+### Quick Start Example
+
+Here's a complete example of using splat-transform in a Vite + React app:
+
+```typescript
+// Install first:
+// npm install github:Chronoz99/splat-transform#feature/package-build
+
+import { useState } from 'react';
+import { convert, isGpuAvailable } from '@playcanvas/splat-transform/browser';
+
+function SplatConverter() {
+  const [file, setFile] = useState<File | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [gpuAvailable, setGpuAvailable] = useState(false);
+
+  // Check GPU on mount
+  useEffect(() => {
+    isGpuAvailable().then(setGpuAvailable);
+  }, []);
+
+  const handleConvert = async () => {
+    if (!file) return;
+    
+    setConverting(true);
+    try {
+      const result = await convert(file, {
+        outputFormat: 'sog',
+        useGpu: gpuAvailable
+      });
+      
+      // Download the result
+      const blob = new Blob([result], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name.replace(/\.\w+$/, '.sog');
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Conversion failed:', error);
+    } finally {
+      setConverting(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Convert Splat Files</h2>
+      <p>GPU Available: {gpuAvailable ? '✅ Yes' : '❌ No'}</p>
+      
+      <input 
+        type="file" 
+        accept=".ply,.splat,.ksplat,.sog"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+      />
+      
+      <button onClick={handleConvert} disabled={!file || converting}>
+        {converting ? 'Converting...' : 'Convert to SOG'}
+      </button>
+    </div>
+  );
+}
+```
+
 ### Basic Usage
 
 ```typescript
