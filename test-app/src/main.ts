@@ -8,7 +8,8 @@ import {
   isGpuAvailable, 
   getGpuAdapters, 
   type ConvertOptions,
-  type OutputFormat 
+  type OutputFormat,
+  type ProgressInfo
 } from '@playcanvas/splat-transform/browser';
 
 // ============================================================================
@@ -123,7 +124,12 @@ convertBtn.addEventListener('click', async () => {
     const options: ConvertOptions = {
       outputFormat: format,
       useGpu: gpuAvailable && format === 'sog',
-      sogIterations: 8
+      sogIterations: 8,
+      onProgress: (info: ProgressInfo) => {
+        // Update progress bar with real progress
+        updateProgress(info.progress, info.message);
+        console.log(`[${info.stage}] ${Math.round(info.progress * 100)}% - ${info.message}`);
+      }
     };
 
     // Convert the file
@@ -169,16 +175,12 @@ function showProgress(message: string) {
   progress.classList.add('active');
   progressText.textContent = message;
   progressFill.style.width = '0%';
-  
-  // Simulate progress (since we don't have real progress callbacks yet)
-  let width = 0;
-  const interval = setInterval(() => {
-    width += 1;
-    if (width >= 90) {
-      clearInterval(interval);
-    }
-    progressFill.style.width = `${width}%`;
-  }, 100);
+}
+
+function updateProgress(progressValue: number, message: string) {
+  progress.classList.add('active');
+  progressText.textContent = message;
+  progressFill.style.width = `${Math.round(progressValue * 100)}%`;
 }
 
 function hideProgress() {

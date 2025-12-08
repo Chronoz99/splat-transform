@@ -142,6 +142,38 @@ export interface BandsFilter {
 export type Filter = NaNFilter | BoxFilter | SphereFilter | ValueFilter | BandsFilter;
 
 /**
+ * Progress stages during conversion
+ */
+export type ProgressStage =
+    | 'reading'
+    | 'processing'
+    | 'writing'
+    | 'writing:means'
+    | 'writing:quaternions'
+    | 'writing:scales'
+    | 'writing:colors'
+    | 'writing:spherical-harmonics'
+    | 'writing:finalize'
+    | 'complete';
+
+/**
+ * Progress information passed to the callback
+ */
+export interface ProgressInfo {
+    /** Current stage of processing */
+    stage: ProgressStage;
+    /** Overall progress from 0 to 1 */
+    progress: number;
+    /** Human-readable message */
+    message: string;
+}
+
+/**
+ * Callback function for progress updates
+ */
+export type ProgressCallback = (info: ProgressInfo) => void;
+
+/**
  * Options for reading splat data
  */
 export interface ReadOptions {
@@ -174,6 +206,11 @@ export interface WriteOptions {
      * Bundle all data into single file (SOG format, default: true for browser)
      */
     bundled?: boolean;
+
+    /**
+     * Progress callback for tracking write progress
+     */
+    onProgress?: ProgressCallback;
 }
 
 /**
@@ -388,7 +425,8 @@ const writeToSink = async (
         case 'sog':
             await writeSogBrowser(sink, dataTable, {
                 iterations: options.sogIterations ?? 8,
-                useGpu: options.useGpu ?? true
+                useGpu: options.useGpu ?? true,
+                onProgress: options.onProgress
             });
             break;
         case 'compressed-ply':
@@ -571,7 +609,11 @@ export async function convert(
     input: ArrayBuffer | File | Blob,
     options: ConvertOptions
 ): Promise<ArrayBuffer> {
+    const onProgress = options.onProgress;
+
     // Read input
+    onProgress?.({ stage: 'reading', progress: 0, message: 'Reading input file...' });
+
     const inputFormat = options.inputFormat ?? detectInputFormat(input);
     if (!inputFormat) {
         throw new Error('Could not detect input format. Please specify the inputFormat option.');
@@ -585,6 +627,8 @@ export async function convert(
     } finally {
         await source.close();
     }
+
+    onProgress?.({ stage: 'reading', progress: 0.1, message: `Loaded ${dataTable.numRows.toLocaleString()} splats` });
 
     // Apply transforms and filters
     const processActions: ProcessAction[] = [];
@@ -602,11 +646,17 @@ export async function convert(
     }
 
     if (processActions.length > 0) {
+        onProgress?.({ stage: 'processing', progress: 0.15, message: 'Applying transforms and filters...' });
         dataTable = processDataTable(dataTable, processActions);
+        onProgress?.({ stage: 'processing', progress: 0.2, message: `Processing complete: ${dataTable.numRows.toLocaleString()} splats` });
     }
 
     // Write output
-    return write(dataTable, options.outputFormat, options);
+    onProgress?.({ stage: 'writing', progress: 0.2, message: 'Starting conversion...' });
+    const result = await write(dataTable, options.outputFormat, options);
+    onProgress?.({ stage: 'complete', progress: 1, message: 'Conversion complete!' });
+
+    return result;
 }
 
 /**

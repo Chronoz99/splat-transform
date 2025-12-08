@@ -85,11 +85,12 @@ a.click();
 
 ```typescript
 import { useState, useEffect } from 'react';
-import { convert, isGpuAvailable } from '@playcanvas/splat-transform/browser';
+import { convert, isGpuAvailable, type ProgressInfo } from '@playcanvas/splat-transform/browser';
 
 export function SplatCompressor() {
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
   const [gpuAvailable, setGpuAvailable] = useState(false);
   const [result, setResult] = useState<ArrayBuffer | null>(null);
 
@@ -101,15 +102,21 @@ export function SplatCompressor() {
     if (!file) return;
 
     try {
-      setProgress(10);
+      setProgress(0);
+      setStatusMessage('Starting...');
       
       const output = await convert(file, {
         outputFormat: 'sog',
         useGpu: gpuAvailable,
-        sogIterations: 8
+        sogIterations: 8,
+        onProgress: (info: ProgressInfo) => {
+          setProgress(Math.round(info.progress * 100));
+          setStatusMessage(info.message);
+        }
       });
       
       setProgress(100);
+      setStatusMessage('Complete!');
       setResult(output);
       
       // Auto-download
@@ -122,9 +129,7 @@ export function SplatCompressor() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Conversion failed:', error);
-      alert('Conversion failed: ' + (error as Error).message);
-    } finally {
-      setProgress(0);
+      setStatusMessage('Error: ' + (error as Error).message);
     }
   };
 
@@ -139,15 +144,23 @@ export function SplatCompressor() {
         onChange={(e) => setFile(e.target.files?.[0] || null)}
       />
       
-      <button onClick={handleConvert} disabled={!file || progress > 0}>
-        {progress > 0 ? `Converting... ${progress}%` : 'Convert to SOG'}
+      <button onClick={handleConvert} disabled={!file || (progress > 0 && progress < 100)}>
+        Convert to SOG
       </button>
+      
+      {progress > 0 && (
+        <div>
+          <progress value={progress} max={100} />
+          <p>{progress}% - {statusMessage}</p>
+        </div>
+      )}
       
       {result && (
         <p>✅ Done: {(result.byteLength / 1024 / 1024).toFixed(2)} MB</p>
       )}
     </div>
   );
+}
 }
 ```
 
@@ -301,7 +314,48 @@ interface ConvertOptions {
   filters?: Filter[];                   // Filters to apply
   companionFiles?: Map<string, ArrayBuffer>; // For multi-file formats
   bundled?: boolean;                    // Bundle all data (SOG, default: true)
+  onProgress?: ProgressCallback;        // Callback for progress updates
 }
+```
+
+### `ProgressCallback` and `ProgressInfo`
+
+Track conversion progress with a callback:
+
+```typescript
+type ProgressCallback = (info: ProgressInfo) => void;
+
+interface ProgressInfo {
+  stage: ProgressStage;    // Current stage of processing
+  progress: number;        // Overall progress from 0 to 1
+  message: string;         // Human-readable message
+}
+
+type ProgressStage =
+  | 'reading'
+  | 'processing'
+  | 'writing'
+  | 'writing:means'
+  | 'writing:quaternions'
+  | 'writing:scales'
+  | 'writing:colors'
+  | 'writing:spherical-harmonics'
+  | 'writing:finalize'
+  | 'complete';
+```
+
+**Example:**
+```typescript
+const result = await convert(file, {
+  outputFormat: 'sog',
+  useGpu: true,
+  onProgress: (info) => {
+    console.log(`[${info.stage}] ${Math.round(info.progress * 100)}% - ${info.message}`);
+    // Update your UI progress bar
+    progressBar.style.width = `${info.progress * 100}%`;
+    statusText.textContent = info.message;
+  }
+});
 ```
 
 ### `Transform`

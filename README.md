@@ -265,18 +265,19 @@ This prevents Vite from pre-bundling the package, which is important for proper 
 
 ### Quick Start Example
 
-Here's a complete example of using splat-transform in a Vite + React app:
+Here's a complete example of using splat-transform in a Vite + React app with progress tracking:
 
 ```typescript
 // Install first:
 // npm install github:Chronoz99/splat-transform#feature/package-build
 
-import { useState } from 'react';
-import { convert, isGpuAvailable } from '@playcanvas/splat-transform/browser';
+import { useState, useEffect } from 'react';
+import { convert, isGpuAvailable, type ProgressInfo } from '@playcanvas/splat-transform/browser';
 
 function SplatConverter() {
   const [file, setFile] = useState<File | null>(null);
-  const [converting, setConverting] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState('');
   const [gpuAvailable, setGpuAvailable] = useState(false);
 
   // Check GPU on mount
@@ -287,11 +288,17 @@ function SplatConverter() {
   const handleConvert = async () => {
     if (!file) return;
     
-    setConverting(true);
+    setProgress(0);
+    setStatusMessage('Starting...');
+    
     try {
       const result = await convert(file, {
         outputFormat: 'sog',
-        useGpu: gpuAvailable
+        useGpu: gpuAvailable,
+        onProgress: (info: ProgressInfo) => {
+          setProgress(Math.round(info.progress * 100));
+          setStatusMessage(info.message);
+        }
       });
       
       // Download the result
@@ -302,10 +309,11 @@ function SplatConverter() {
       a.download = file.name.replace(/\.\w+$/, '.sog');
       a.click();
       URL.revokeObjectURL(url);
+      
+      setStatusMessage('Complete!');
     } catch (error) {
       console.error('Conversion failed:', error);
-    } finally {
-      setConverting(false);
+      setStatusMessage('Error: ' + (error as Error).message);
     }
   };
 
@@ -320,9 +328,16 @@ function SplatConverter() {
         onChange={(e) => setFile(e.target.files?.[0] || null)}
       />
       
-      <button onClick={handleConvert} disabled={!file || converting}>
-        {converting ? 'Converting...' : 'Convert to SOG'}
+      <button onClick={handleConvert} disabled={!file || (progress > 0 && progress < 100)}>
+        Convert to SOG
       </button>
+      
+      {progress > 0 && (
+        <div>
+          <progress value={progress} max={100} />
+          <p>{progress}% - {statusMessage}</p>
+        </div>
+      )}
     </div>
   );
 }

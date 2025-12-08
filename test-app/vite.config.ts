@@ -6,7 +6,10 @@ export default defineConfig({
     open: true
   },
   build: {
-    target: 'esnext'
+    target: 'esnext',
+    rollupOptions: {
+      external: ['webgpu', 'module', 'node:path', 'node:url']
+    }
   },
   optimizeDeps: {
     exclude: ['@playcanvas/splat-transform']

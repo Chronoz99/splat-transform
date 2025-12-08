@@ -14,6 +14,8 @@ import { kmeans } from '../utils/k-means';
 import { sigmoid } from '../utils/math';
 import { WebPCodec } from '../utils/webp-codec';
 
+import { ProgressCallback, ProgressStage } from '../browser';
+
 const shNames = new Array(45).fill('').map((_, i) => `f_rest_${i}`);
 
 const calcMinMax = (dataTable: DataTable, columnNames: string[], indices: Uint32Array) => {
@@ -113,6 +115,8 @@ interface WriteSogBrowserOptions {
     iterations?: number;
     /** Use GPU acceleration (default: true) */
     useGpu?: boolean;
+    /** Progress callback for tracking write progress */
+    onProgress?: ProgressCallback;
 }
 
 /**
@@ -130,7 +134,13 @@ const writeSogBrowser = async (
 ) => {
     const iterations = options.iterations ?? 8;
     const useGpu = options.useGpu ?? true;
+    const onProgress = options.onProgress;
     const indices = generateIndices(dataTable);
+
+    // Helper to report progress
+    const reportProgress = (stage: ProgressStage, progress: number, message: string) => {
+        onProgress?.({ stage, progress, message });
+    };
 
     // Create a BufferSink to accumulate zip data, then wrap in ZipWriter
     const bufferSink = new BufferSink();
@@ -356,17 +366,31 @@ const writeSogBrowser = async (
     const shBands = { '9': 1, '24': 2, '-1': 3 }[shNames.findIndex(v => !dataTable.hasColumn(v)) as 9 | 24 | -1] ?? 0;
 
     // convert and write attributes
+    reportProgress('writing:means', 0.25, 'Processing position data...');
     const meansMinMax = await writeMeans();
+
+    reportProgress('writing:quaternions', 0.35, 'Processing rotation data...');
     await writeQuaternions();
 
     // Initialize GPU device if requested
     if (useGpu && !gpuDevice) {
+        reportProgress('writing:scales', 0.4, 'Initializing GPU acceleration...');
         gpuDevice = await createGpuDevice();
     }
 
+    reportProgress('writing:scales', 0.45, 'Clustering scale data...');
     const scalesCodebook = await writeScales();
+
+    reportProgress('writing:colors', 0.55, 'Clustering color data...');
     const colorsCodebook = await writeColors();
-    const shN = shBands > 0 ? await writeSH(shBands) : null;
+
+    let shN = null;
+    if (shBands > 0) {
+        reportProgress('writing:spherical-harmonics', 0.65, 'Processing spherical harmonics...');
+        shN = await writeSH(shBands);
+    }
+
+    reportProgress('writing:finalize', 0.9, 'Finalizing output file...');
 
     // construct meta.json
     const meta = {
