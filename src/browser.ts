@@ -40,6 +40,29 @@ import { readKsplat } from './readers/read-ksplat';
 import { readPly } from './readers/read-ply';
 import { readSplat } from './readers/read-splat';
 import { readSpz } from './readers/read-spz';
+import {
+    encrypt,
+    decrypt,
+    generateKey,
+    deriveKey,
+    exportKey,
+    importKey,
+    isEncrypted,
+    extractSalt,
+    getEncryptionInfo,
+    EncryptOptions,
+    DecryptOptions,
+    EncryptedData,
+    DeriveKeyOptions
+} from './utils/encryption';
+import {
+    ObfuscatedCrypto,
+    createObfuscatedCrypto,
+    generateSessionToken,
+    splitKeyForDelivery,
+    prepareKeyDelivery,
+    ObfuscatedCryptoConfig
+} from './utils/obfuscated-crypto';
 import { writeSogBrowser } from './writers/browser-write-sog';
 import { writeCompressedPly } from './writers/write-compressed-ply';
 import { writeCsv } from './writers/write-csv';
@@ -729,3 +752,27 @@ export function setQuiet(quiet: boolean): void {
 // Re-export useful types
 export { DataTable, Column };
 export type { TypedArray };
+
+// Re-export encryption utilities
+export {
+    encrypt,
+    decrypt,
+    generateKey,
+    deriveKey,
+    exportKey,
+    importKey,
+    isEncrypted,
+    extractSalt,
+    getEncryptionInfo
+};
+export type { EncryptOptions, DecryptOptions, EncryptedData, DeriveKeyOptions };
+
+// Re-export obfuscated crypto utilities
+export {
+    ObfuscatedCrypto,
+    createObfuscatedCrypto,
+    generateSessionToken,
+    splitKeyForDelivery,
+    prepareKeyDelivery
+};
+export type { ObfuscatedCryptoConfig };

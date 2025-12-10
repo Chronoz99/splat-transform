@@ -257,6 +257,250 @@
       border-radius: 4px;
       margin-top: 0.5rem;
     }
+
+    /* Encryption Demo Styles */
+    .section-divider {
+      margin: 2rem 0;
+      border-top: 2px solid #e9ecef;
+      padding-top: 2rem;
+    }
+
+    .encryption-section {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      border-radius: 8px;
+      padding: 1.5rem;
+      color: white;
+      margin-bottom: 1rem;
+    }
+
+    .encryption-section h2 {
+      margin-bottom: 0.5rem;
+    }
+
+    .encryption-section p {
+      opacity: 0.9;
+      font-size: 0.9rem;
+    }
+
+    .encryption-options {
+      display: grid;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .option-group {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+
+    .option-group label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #495057;
+    }
+
+    .option-group input[type="text"],
+    .option-group input[type="password"] {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.9rem;
+    }
+
+    .option-group .help-text {
+      font-size: 0.8rem;
+      color: #6c757d;
+      margin-top: 0.25rem;
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .key-display {
+      background: #212529;
+      color: #00ff00;
+      padding: 1rem;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.8rem;
+      word-break: break-all;
+      margin-top: 0.5rem;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .fragments-display {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+
+    .fragment-item {
+      background: #343a40;
+      color: #ffc107;
+      padding: 0.5rem;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      word-break: break-all;
+    }
+
+    .fragment-label {
+      color: #6c757d;
+      font-size: 0.7rem;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+
+    .verification-section {
+      background: #e7f3ff;
+      border: 1px solid #b6d4fe;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .verification-section h3 {
+      color: #084298;
+      margin-bottom: 1rem;
+    }
+
+    .verification-step {
+      display: flex;
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #b6d4fe;
+    }
+
+    .verification-step:last-child {
+      border-bottom: none;
+    }
+
+    .step-number {
+      background: #084298;
+      color: white;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-title {
+      font-weight: 600;
+      color: #084298;
+      margin-bottom: 0.25rem;
+    }
+
+    .step-description {
+      font-size: 0.9rem;
+      color: #495057;
+    }
+
+    code {
+      background: #f8f9fa;
+      padding: 0.2rem 0.4rem;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+      color: #d63384;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid #dee2e6;
+    }
+
+    .tab {
+      padding: 0.75rem 1.5rem;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      color: #6c757d;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: #667eea;
+    }
+
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .decrypt-section {
+      margin-top: 1rem;
+    }
+
+    .file-drop-zone {
+      border: 2px dashed #667eea;
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      background: #f8f9ff;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .file-drop-zone:hover {
+      border-color: #764ba2;
+      background: #f0f2ff;
+    }
+
+    .file-drop-zone.dragover {
+      border-color: #28a745;
+      background: #d4edda;
+    }
   </style>
 </head>
 <body>
@@ -335,6 +579,219 @@
             </div>
           </div>
           <button id="download-btn" style="margin-top: 1rem; width: 100%;">Download Result</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Encryption Demo Section -->
+    <div class="section-divider">
+      <div class="encryption-section">
+        <h2>🔐 Asset Protection Demo</h2>
+        <p>Test encryption features to protect your 3D assets from casual theft.</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="encrypt">Encrypt</button>
+        <button class="tab" data-tab="decrypt">Decrypt</button>
+        <button class="tab" data-tab="obfuscated">Obfuscated (Advanced)</button>
+        <button class="tab" data-tab="verify">Verify</button>
+      </div>
+
+      <!-- Encrypt Tab -->
+      <div class="tab-content active" id="tab-encrypt">
+        <div class="encryption-options">
+          <div class="option-group">
+            <label>Encryption Method</label>
+            <select id="encryption-method">
+              <option value="random">Random Key (Most Secure)</option>
+              <option value="password">Password-Based Key</option>
+            </select>
+            <p class="help-text">Random key is more secure but must be stored. Password-based can be memorized.</p>
+          </div>
+
+          <div class="option-group" id="password-group" style="display: none;">
+            <label>Password</label>
+            <input type="password" id="encryption-password" placeholder="Enter a strong password...">
+            <p class="help-text">Use at least 12 characters with mixed case, numbers, and symbols.</p>
+          </div>
+
+          <div class="option-group">
+            <div class="checkbox-group">
+              <input type="checkbox" id="encrypt-output" checked>
+              <label for="encrypt-output" style="margin: 0; font-weight: normal;">Encrypt output file</label>
+            </div>
+            <p class="help-text">When enabled, the converted file will be encrypted before download.</p>
+          </div>
+
+          <div class="option-group" id="key-display-group" style="display: none;">
+            <label>🔑 Generated Key (Save This!)</label>
+            <div class="key-display" id="generated-key">-</div>
+            <button class="btn-secondary" id="copy-key-btn" style="margin-top: 0.5rem;">📋 Copy Key</button>
+            <p class="help-text">⚠️ Store this key securely. You'll need it to decrypt the file later.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Decrypt Tab -->
+      <div class="tab-content" id="tab-decrypt">
+        <div class="decrypt-section">
+          <div class="option-group">
+            <label>Encrypted File (.esog)</label>
+            <input type="file" id="encrypted-file-input" accept=".esog,.bin">
+          </div>
+
+          <div class="option-group">
+            <label>Decryption Method</label>
+            <select id="decryption-method">
+              <option value="key">Encryption Key</option>
+              <option value="password">Password</option>
+            </select>
+          </div>
+
+          <div class="option-group" id="decrypt-key-group">
+            <label>Encryption Key</label>
+            <input type="text" id="decryption-key" placeholder="Paste your encryption key here...">
+          </div>
+
+          <div class="option-group" id="decrypt-password-group" style="display: none;">
+            <label>Password</label>
+            <input type="password" id="decryption-password" placeholder="Enter password...">
+          </div>
+
+          <button id="decrypt-btn" style="width: 100%; margin-top: 1rem;">🔓 Decrypt File</button>
+
+          <div id="decrypt-result" style="display: none; margin-top: 1rem;">
+            <div class="result-card">
+              <div class="result-title">✅ Decryption Successful!</div>
+              <div class="result-info">
+                <div class="result-item">
+                  <span class="result-label">Decrypted Size</span>
+                  <span class="result-value" id="decrypted-size">-</span>
+                </div>
+              </div>
+              <button id="download-decrypted-btn" style="margin-top: 1rem; width: 100%;">Download Decrypted File</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Obfuscated Tab -->
+      <div class="tab-content" id="tab-obfuscated">
+        <div class="option-group">
+          <label>🛡️ Obfuscated Crypto Demo</label>
+          <p class="help-text">
+            This demonstrates the advanced key-splitting technique. The key is split into 4 fragments
+            that would normally come from different API endpoints, making interception much harder.
+          </p>
+        </div>
+
+        <div class="option-group">
+          <label>Session Token</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="session-token" readonly style="flex: 1;">
+            <button class="btn-secondary" id="regenerate-token-btn">🔄</button>
+          </div>
+          <p class="help-text">Unique per session - changes the internal obfuscation masks.</p>
+        </div>
+
+        <div class="option-group" id="fragments-group" style="display: none;">
+          <label>🧩 Key Fragments (4 parts)</label>
+          <p class="help-text">In a real app, each fragment would come from a different API endpoint:</p>
+          <div class="fragments-display" id="fragments-display">
+            <div class="fragment-item"><span class="fragment-label">/api/render/config</span><span id="frag-0">-</span></div>
+            <div class="fragment-item"><span class="fragment-label">/api/session/validate</span><span id="frag-1">-</span></div>
+            <div class="fragment-item"><span class="fragment-label">/api/assets/metadata</span><span id="frag-2">-</span></div>
+            <div class="fragment-item"><span class="fragment-label">/api/viewer/settings</span><span id="frag-3">-</span></div>
+          </div>
+        </div>
+
+        <button id="obfuscated-encrypt-btn" style="width: 100%; margin-top: 1rem;">🔐 Encrypt with Obfuscation</button>
+        <button id="obfuscated-decrypt-btn" style="width: 100%; margin-top: 0.5rem;" disabled>🔓 Decrypt with Fragments</button>
+      </div>
+
+      <!-- Verify Tab -->
+      <div class="tab-content" id="tab-verify">
+        <div class="verification-section">
+          <h3>🔍 How to Verify the Protection Works</h3>
+          
+          <div class="verification-step">
+            <div class="step-number">1</div>
+            <div class="step-content">
+              <div class="step-title">Convert & Encrypt a File</div>
+              <div class="step-description">
+                Go to the Encrypt tab, enable "Encrypt output file", convert any .ply file, and download the result.
+                Notice the file extension is <code>.esog</code> instead of <code>.sog</code>.
+              </div>
+            </div>
+          </div>
+
+          <div class="verification-step">
+            <div class="step-number">2</div>
+            <div class="step-content">
+              <div class="step-title">Try Opening the Encrypted File</div>
+              <div class="step-description">
+                Try to open the <code>.esog</code> file in a hex editor or any splat viewer.
+                You'll see it starts with <code>ESPL</code> (our magic bytes) followed by random-looking data.
+                <strong>It's completely unusable without the key.</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="verification-step">
+            <div class="step-number">3</div>
+            <div class="step-content">
+              <div class="step-title">Decrypt with Correct Key</div>
+              <div class="step-description">
+                Go to the Decrypt tab, upload the <code>.esog</code> file, paste the key you saved,
+                and click Decrypt. The file will be restored perfectly.
+              </div>
+            </div>
+          </div>
+
+          <div class="verification-step">
+            <div class="step-number">4</div>
+            <div class="step-content">
+              <div class="step-title">Try Wrong Key</div>
+              <div class="step-description">
+                Try decrypting with a wrong key or modified key. You'll get an error:
+                <code>Decryption failed: invalid key or corrupted data</code>.
+                AES-GCM detects tampering!
+              </div>
+            </div>
+          </div>
+
+          <div class="verification-step">
+            <div class="step-number">5</div>
+            <div class="step-content">
+              <div class="step-title">Open DevTools Network Tab</div>
+              <div class="step-description">
+                Press <code>F12</code> → Network tab. Convert a file with encryption enabled.
+                You'll see no key is transmitted anywhere - it's generated client-side.
+                In a real SaaS, the key would come from your backend API.
+              </div>
+            </div>
+          </div>
+
+          <div class="verification-step">
+            <div class="step-number">6</div>
+            <div class="step-content">
+              <div class="step-title">Test Obfuscated Mode</div>
+              <div class="step-description">
+                Go to the Obfuscated tab and encrypt a file. Notice how the key is split into 4 fragments.
+                In production, each fragment would come from a different API endpoint, making it much
+                harder for attackers to intercept the complete key.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="option-group" style="margin-top: 1rem;">
+          <label>📊 Encryption Stats</label>
+          <div id="encryption-stats">
+            <p>Files encrypted this session: <strong id="stat-encrypted">0</strong></p>
+            <p>Files decrypted this session: <strong id="stat-decrypted">0</strong></p>
+            <p>Bytes protected: <strong id="stat-bytes">0</strong></p>
+          </div>
         </div>
       </div>
     </div>
