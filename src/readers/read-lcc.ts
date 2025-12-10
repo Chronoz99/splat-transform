@@ -1,10 +1,10 @@
-import { Buffer } from 'node:buffer';
 import { FileHandle, open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { Vec3 } from 'playcanvas';
 
 import { Column, DataTable } from '../data-table';
+import { DataSource, BufferSource } from '../io/data-source';
 import { Options } from '../types';
 
 const kSH_C0 = 0.28209479177387814;
@@ -38,7 +38,7 @@ type CompressInfo = {
     envShMax: Vec3;         // max environment sh
 }
 
-// parameters used to convert LCC data into GSplatData
+// parameters used to convert LCC data into GSplatData (file-based)
 type LccParam = {
     totalSplats: number;
     targetLod: number;
@@ -48,11 +48,25 @@ type LccParam = {
     shFile?: FileHandle;
 }
 
+// parameters with buffer support for browser
+type LccParamWithBuffers = {
+    totalSplats: number;
+    targetLod: number;
+    compressInfo: CompressInfo;
+    unitInfos: Array<LccUnitInfo>;
+    dataFile: FileHandle | null;
+    shFile: FileHandle | null;
+    dataBuffer: Uint8Array | null;
+    shBuffer: Uint8Array | null;
+}
+
 type ProcessUnitContext = {
     info: LccUnitInfo;
     targetLod: number;
-    dataFile: FileHandle;
-    shFile?: FileHandle;
+    dataFile: FileHandle | null;
+    shFile: FileHandle | null;
+    dataBuffer: Uint8Array | null;
+    shBuffer: Uint8Array | null;
     compressInfo: CompressInfo;
     propertyOffset: number;
     properties: Record<string, Float32Array>;
@@ -60,16 +74,16 @@ type ProcessUnitContext = {
 }
 
 const readPart = async (fh: FileHandle, start: number, end: number): Promise<Uint8Array> => {
-    const buf = Buffer.alloc(end - start);
-    await fh.read(buf, 0, end - start, start);
-    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    const buf = new Uint8Array(end - start);
+    const { bytesRead } = await fh.read(buf, 0, end - start, start);
+    return new Uint8Array(buf.buffer, buf.byteOffset, bytesRead);
 };
 
 const read = async (fh: FileHandle): Promise<Uint8Array> => {
     const stat = await fh.stat();
-    const buf = Buffer.alloc(stat.size);
-    await fh.read(buf, 0, stat.size, 0);
-    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    const buf = new Uint8Array(stat.size);
+    const { bytesRead } = await fh.read(buf, 0, stat.size, 0);
+    return new Uint8Array(buf.buffer, buf.byteOffset, bytesRead);
 };
 
 const openAndRead = async (pathname: string): Promise<Uint8Array> => {
@@ -294,6 +308,8 @@ const processUnit = async (ctx: ProcessUnitContext) => {
         targetLod,
         dataFile,
         shFile,
+        dataBuffer,
+        shBuffer,
         compressInfo,
         propertyOffset,
         properties,
@@ -309,19 +325,30 @@ const processUnit = async (ctx: ProcessUnitContext) => {
         return propertyOffset;
     }
 
-    // load data
-    const dataSource = await readPart(dataFile, offset, offset + size);
-    const dataView = new DataView(dataSource.buffer);
+    // load data from file or buffer
+    let dataSource: Uint8Array;
+    if (dataFile) {
+        dataSource = await readPart(dataFile, offset, offset + size);
+    } else if (dataBuffer) {
+        dataSource = dataBuffer.subarray(offset, offset + size);
+    } else {
+        throw new Error('No data source available');
+    }
+    const dataView = new DataView(dataSource.buffer, dataSource.byteOffset, dataSource.byteLength);
 
-    // load sh data
+    // load sh data from file or buffer
     let shDataView: DataView | null = null;
     if (shFile) {
         const shSource = await readPart(shFile, offset * 2, offset * 2 + size * 2);
-        shDataView = new DataView(shSource.buffer);
+        shDataView = new DataView(shSource.buffer, shSource.byteOffset, shSource.byteLength);
+    } else if (shBuffer) {
+        const shSource = shBuffer.subarray(offset * 2, offset * 2 + size * 2);
+        shDataView = new DataView(shSource.buffer, shSource.byteOffset, shSource.byteLength);
     }
 
+    const hasShData = shFile !== null || shBuffer !== null;
     const unitProperties = initProperties(unitSplats);
-    const unitProperties_f_rest = shFile ? Array.from({ length: 45 }, () => new Float32Array(unitSplats)) : null;
+    const unitProperties_f_rest = hasShData ? Array.from({ length: 45 }, () => new Float32Array(unitSplats)) : null;
 
     for (let i = 0; i < unitSplats; i++) {
         decodeSplat(dataView, shDataView, i, compressInfo, unitProperties, unitProperties_f_rest);
@@ -340,13 +367,15 @@ const processUnit = async (ctx: ProcessUnitContext) => {
     return propertyOffset + unitSplats;
 };
 
-// this function would stream data directly into GSplatData buffers
-const deserializeFromLcc = async (param: LccParam) => {
-    const { totalSplats, unitInfos, targetLod, dataFile, shFile, compressInfo } = param;
+// this function supports both file-based and buffer-based loading
+const deserializeFromLccWithBuffers = async (param: LccParamWithBuffers) => {
+    const { totalSplats, unitInfos, targetLod, dataFile, shFile, dataBuffer, shBuffer, compressInfo } = param;
+
+    const hasShData = shFile !== null || shBuffer !== null;
 
     // properties to GSplatData
     const properties: Record<string, Float32Array> = initProperties(totalSplats);
-    const properties_f_rest = shFile ? Array.from({ length: 45 }, () => createStorage(totalSplats)) : null;
+    const properties_f_rest = hasShData ? Array.from({ length: 45 }, () => createStorage(totalSplats)) : null;
 
     let propertyOffset = 0;
     for (const info of unitInfos) {
@@ -355,6 +384,8 @@ const deserializeFromLcc = async (param: LccParam) => {
             targetLod,
             dataFile,
             shFile,
+            dataBuffer,
+            shBuffer,
             compressInfo,
             propertyOffset,
             properties,
@@ -368,6 +399,16 @@ const deserializeFromLcc = async (param: LccParam) => {
     ];
 
     return new DataTable(columns);
+};
+
+// Legacy function for backward compatibility (file-based only)
+const deserializeFromLcc = (param: LccParam) => {
+    return deserializeFromLccWithBuffers({
+        ...param,
+        shFile: param.shFile ?? null,
+        dataBuffer: null,
+        shBuffer: null
+    });
 };
 
 const deserializeEnvironment = (raw: Uint8Array, compressInfo: CompressInfo, hasSH: boolean) => {
@@ -431,8 +472,20 @@ const deserializeEnvironment = (raw: Uint8Array, compressInfo: CompressInfo, has
     return new DataTable(columns);
 };
 
-const readLcc = async (fileHandle: FileHandle, sourceName: string, options: Options): Promise<DataTable[]> => {
-    const lccData = await read(fileHandle);
+/**
+ * Options for reading LCC files.
+ * For Node.js, provide sourcePath.
+ * For browser, provide companionFiles map with 'index.bin', 'data.bin', and optionally 'shcoef.bin' and 'environment.bin'.
+ */
+type ReadLccOptions = Options & {
+    /** Source file path (for Node.js file system loading) */
+    sourcePath?: string;
+    /** Map of companion file names to their data (for browser loading) */
+    companionFiles?: Map<string, ArrayBuffer | Uint8Array>;
+};
+
+const readLcc = async (source: DataSource, options: ReadLccOptions): Promise<DataTable[]> => {
+    const lccData = await source.readAll();
     const lccText = new TextDecoder().decode(lccData);
     const lccJson = JSON.parse(lccText);
 
@@ -457,11 +510,44 @@ const readLcc = async (fileHandle: FileHandle, sourceName: string, options: Opti
     const compressInfo = parseMeta(lccJson);
     const splats = lccJson.splats;
 
-    const relatedFilename = (name: string) => join(dirname(sourceName ?? ''), name);
+    const sourcePath = options.sourcePath;
+    const companionFiles = options.companionFiles;
 
-    const indexData = await openAndRead(relatedFilename('index.bin'));
-    const dataFile = await open(relatedFilename('data.bin'), 'r');
-    const shFile = hasSH ? await open(relatedFilename('shcoef.bin'), 'r') : null;
+    // Helper to load companion files
+    const loadCompanion = (name: string): Uint8Array | Promise<Uint8Array> => {
+        if (companionFiles) {
+            const data = companionFiles.get(name);
+            if (!data) throw new Error(`Missing companion file '${name}'`);
+            return data instanceof Uint8Array ? data : new Uint8Array(data);
+        }
+        if (!sourcePath) {
+            throw new Error(`Cannot load companion file '${name}': no source path or companion files provided`);
+        }
+        return openAndRead(join(dirname(sourcePath), name));
+    };
+
+    const indexData = await loadCompanion('index.bin');
+
+    // For data.bin and shcoef.bin, we need FileHandle for streaming access (Node.js)
+    // or the full data (browser)
+    let dataFile: FileHandle | null = null;
+    let shFile: FileHandle | null = null;
+    let dataBuffer: Uint8Array | null = null;
+    let shBuffer: Uint8Array | null = null;
+
+    if (companionFiles) {
+        // Browser path - load full buffers
+        dataBuffer = await loadCompanion('data.bin');
+        if (hasSH) {
+            shBuffer = await loadCompanion('shcoef.bin');
+        }
+    } else if (sourcePath) {
+        // Node.js path - use file handles for streaming
+        dataFile = await open(join(dirname(sourcePath), 'data.bin'), 'r');
+        if (hasSH) {
+            shFile = await open(join(dirname(sourcePath), 'shcoef.bin'), 'r');
+        }
+    }
 
     const unitInfos: LccUnitInfo[] = parseIndexBin(indexData.buffer as ArrayBuffer, lccJson);
 
@@ -473,7 +559,7 @@ const readLcc = async (fileHandle: FileHandle, sourceName: string, options: Opti
         new Array(splats.length).fill(0).map((_, i) => i);
 
     if (lods.length === 0) {
-        throw new Error(`No valid LODs selected for LCC input file: ${sourceName} lods: ${JSON.stringify(lods)}`);
+        throw new Error(`No valid LODs selected for LCC input file lods: ${JSON.stringify(lods)}`);
     }
 
     const result = [];
@@ -483,12 +569,14 @@ const readLcc = async (fileHandle: FileHandle, sourceName: string, options: Opti
         const outputLod = i;
         const totalSplats = splats[inputLod];
 
-        const dataTable = await deserializeFromLcc({
+        const dataTable = await deserializeFromLccWithBuffers({
             totalSplats,
             unitInfos,
             targetLod: inputLod,
             dataFile,
             shFile,
+            dataBuffer,
+            shBuffer,
             compressInfo
         });
 
@@ -497,15 +585,17 @@ const readLcc = async (fileHandle: FileHandle, sourceName: string, options: Opti
         result.push(dataTable);
     }
 
-    // cleanup
-    await dataFile.close();
+    // cleanup file handles
+    if (dataFile) {
+        await dataFile.close();
+    }
     if (shFile) {
         await shFile.close();
     }
 
     // load environment and tag as lod -1
     try {
-        const envData = await openAndRead(relatedFilename('environment.bin'));
+        const envData = await loadCompanion('environment.bin');
         const envDataTable  = await deserializeEnvironment(envData, compressInfo, hasSH);
         envDataTable.addColumn(new Column('lod', new Float32Array(envDataTable.numRows).fill(-1)));
         result.push(envDataTable);
@@ -516,4 +606,4 @@ const readLcc = async (fileHandle: FileHandle, sourceName: string, options: Opti
     return result;
 };
 
-export { readLcc };
+export { readLcc, ReadLccOptions };

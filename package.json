@@ -3,16 +3,41 @@
   "version": "0.16.0",
   "author": "PlayCanvas<support@playcanvas.com>",
   "homepage": "https://playcanvas.com",
-  "description": "CLI tool for 3D Gaussian splat format conversion and transformation",
+  "description": "Library and CLI for 3D Gaussian splat format conversion and transformation. Works in Node.js and browsers.",
   "keywords": [
     "3d-gaussian-splatting",
+    "browser",
     "cli",
     "gaussian-splatting",
     "playcanvas",
+    "splat",
     "supersplat",
-    "typescript"
+    "typescript",
+    "webgpu"
   ],
   "license": "MIT",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "node": {
+        "types": "./dist/types/index.d.ts",
+        "import": "./dist/index.mjs"
+      },
+      "default": {
+        "types": "./dist/types/index.d.ts",
+        "import": "./dist/index.mjs"
+      }
+    },
+    "./browser": {
+      "types": "./dist/types/browser.d.ts",
+      "import": "./dist/browser.mjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
   "bin": {
     "splat-transform": "bin/cli.mjs"
   },
@@ -30,6 +55,7 @@
   "devDependencies": {
     "@playcanvas/eslint-config": "2.1.0",
     "@playcanvas/supersplat-viewer": "1.9.0",
+    "@rollup/plugin-alias": "^6.0.0",
     "@rollup/plugin-json": "6.1.0",
     "@rollup/plugin-node-resolve": "16.0.3",
     "@rollup/plugin-typescript": "12.3.0",
@@ -37,23 +63,33 @@
     "@types/node": "24.10.1",
     "@typescript-eslint/eslint-plugin": "8.48.0",
     "@typescript-eslint/parser": "8.48.0",
+    "@vitest/ui": "^4.0.15",
     "eslint": "9.39.1",
     "eslint-import-resolver-typescript": "4.4.4",
     "playcanvas": "2.13.6",
     "publint": "0.3.15",
     "rollup": "4.53.3",
     "tslib": "2.8.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "^7.2.7",
+    "vitest": "^4.0.15"
   },
   "dependencies": {
     "webgpu": "^0.3.8"
   },
   "scripts": {
     "build": "rollup -c",
+    "build:vite": "vite build",
     "lint": "eslint src rollup.config.mjs eslint.config.mjs",
     "lint:fix": "eslint src rollup.config.mjs eslint.config.mjs --fix",
     "publint": "publint",
-    "watch": "rollup -c -w"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:node": "node --test test/*.test.mjs",
+    "watch": "rollup -c -w",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build && npm run publint"
   },
   "engines": {
     "node": ">=18.0.0"

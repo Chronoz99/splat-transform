@@ -1,22 +1,22 @@
-import { Buffer } from 'node:buffer';
-import { FileHandle } from 'node:fs/promises';
-
 import { Column, DataTable } from '../data-table';
+import { DataSource } from '../io/data-source';
 
 // See https://github.com/nianticlabs/spz for reference implementation
 
-const decompressGZIP = async (fileHandle: FileHandle): Promise<Buffer<ArrayBuffer>> => {
-    const stats = await fileHandle.stat();
-    const zippedSize = stats.size;
-    const fileBuffer = Buffer.alloc(zippedSize);
-    await fileHandle.read(fileBuffer, 0, zippedSize, 0);
+const decompressGZIP = async (source: DataSource): Promise<Uint8Array> => {
+    const fileData = await source.readAll();
 
-    const blob = new Blob([fileBuffer.buffer], { type: 'application/gzip' });
+    // Ensure we have a proper ArrayBuffer (not SharedArrayBuffer)
+    const buffer = fileData.buffer instanceof ArrayBuffer ?
+        fileData.buffer :
+        new Uint8Array(fileData).buffer;
+
+    const blob = new Blob([buffer], { type: 'application/gzip' });
     const ds = new DecompressionStream('gzip');
     const decompressionStream = blob.stream().pipeThrough(ds);
     const arrayBuffer = await new Response(decompressionStream).arrayBuffer();
 
-    return Buffer.from(arrayBuffer);
+    return new Uint8Array(arrayBuffer);
 };
 
 // Coefficient used by niantic labs spz to have better results with Spherical harmonics.
@@ -38,20 +38,19 @@ function getFixed24(positionsView: DataView, elementIndex: number, memberIndex: 
 
 const HARMONICS_COMPONENT_COUNT = [0, 9, 24, 45];
 
-const readSpz = async (fileHandle: FileHandle): Promise<DataTable> => {
+const readSpz = async (source: DataSource): Promise<DataTable> => {
     // Load magic
     const magicSize = 4;
-    let fileBuffer = Buffer.alloc(magicSize);
-    await fileHandle.read(fileBuffer, 0, magicSize, 0);
-    let magicView = new DataView(fileBuffer.buffer, 0, magicSize);
+    let fileBuffer = await source.read(0, magicSize);
+    let magicView = new DataView(fileBuffer.buffer, fileBuffer.byteOffset, magicSize);
 
     // If file is GZip compressed, decompress it first.
     let isGZipped = false;
     if (magicView.getUint16(0) === 0x1F8B) { // '1F 8B' is the magic for gzip: https://en.wikipedia.org/wiki/Gzip
         isGZipped = true;
-        fileBuffer = await decompressGZIP(fileHandle);
+        fileBuffer = await decompressGZIP(source);
 
-        magicView = new DataView(fileBuffer.buffer, 0, magicSize);
+        magicView = new DataView(fileBuffer.buffer, fileBuffer.byteOffset, magicSize);
     }
 
     const magic = magicView.getUint32(0, true);
@@ -68,7 +67,7 @@ const readSpz = async (fileHandle: FileHandle): Promise<DataTable> => {
 
     // Parse header
     if (isGZipped === false) {
-        await fileHandle.read(fileBuffer, 0, totalSize, 0);
+        fileBuffer = await source.readAll();
     }
     const header = new DataView(fileBuffer.buffer, fileBuffer.byteOffset, HEADER_SIZE);
 
@@ -91,12 +90,12 @@ const readSpz = async (fileHandle: FileHandle): Promise<DataTable> => {
     const harmonicsComponentCount = HARMONICS_COMPONENT_COUNT[shDegree];
     const shByteSize =  numSplats * harmonicsComponentCount;
 
-    const positionsView = new DataView(fileBuffer.buffer, HEADER_SIZE, positionsByteSize);
-    const alphasView =    new DataView(fileBuffer.buffer, HEADER_SIZE + positionsByteSize, alphasByteSize);
-    const colorsView =    new DataView(fileBuffer.buffer, HEADER_SIZE + positionsByteSize + alphasByteSize, colorsByteSize);
-    const scalesView =    new DataView(fileBuffer.buffer, HEADER_SIZE + positionsByteSize + alphasByteSize + colorsByteSize, scalesByteSize);
-    const rotationsView = new DataView(fileBuffer.buffer, HEADER_SIZE + positionsByteSize + alphasByteSize + colorsByteSize + scalesByteSize, rotationsByteSize);
-    const shView =        new DataView(fileBuffer.buffer, HEADER_SIZE + positionsByteSize + alphasByteSize + colorsByteSize + scalesByteSize + rotationsByteSize, shByteSize);
+    const positionsView = new DataView(fileBuffer.buffer, fileBuffer.byteOffset + HEADER_SIZE, positionsByteSize);
+    const alphasView =    new DataView(fileBuffer.buffer, fileBuffer.byteOffset + HEADER_SIZE + positionsByteSize, alphasByteSize);
+    const colorsView =    new DataView(fileBuffer.buffer, fileBuffer.byteOffset + HEADER_SIZE + positionsByteSize + alphasByteSize, colorsByteSize);
+    const scalesView =    new DataView(fileBuffer.buffer, fileBuffer.byteOffset + HEADER_SIZE + positionsByteSize + alphasByteSize + colorsByteSize, scalesByteSize);
+    const rotationsView = new DataView(fileBuffer.buffer, fileBuffer.byteOffset + HEADER_SIZE + positionsByteSize + alphasByteSize + colorsByteSize + scalesByteSize, rotationsByteSize);
+    const shView =        new DataView(fileBuffer.buffer, fileBuffer.byteOffset + HEADER_SIZE + positionsByteSize + alphasByteSize + colorsByteSize + scalesByteSize + rotationsByteSize, shByteSize);
 
     // Create columns for the standard Gaussian splat data
     const columns = [

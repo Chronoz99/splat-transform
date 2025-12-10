@@ -1,32 +1,16 @@
 import { FileHandle } from 'node:fs/promises';
 
-// defines the interface for a stream writer class. all functions are async.
-interface Writer {
-    // write data to the stream
-    write(data: Uint8Array): void | Promise<void>;
+import { DataSink, NodeFileSink, BufferSink } from '../io/data-sink';
 
-    // close the writing stream. return value depends on writer implementation.
-    close(): any | Promise<any>;
-}
+// defines the interface for a stream writer class. all functions are async.
+// Re-export DataSink as Writer for backward compatibility
+type Writer = DataSink;
 
 // write data to a file stream
-class FileWriter implements Writer {
-    write: (data: Uint8Array) => void;
-    close: () => void;
+// Re-export NodeFileSink as FileWriter for backward compatibility
+class FileWriter extends NodeFileSink {}
 
-    constructor(stream: FileHandle) {
-        let cursor = 0;
+// Buffer writer for in-memory output (browser/testing)
+class MemoryWriter extends BufferSink {}
 
-        this.write = async (data: Uint8Array) => {
-            cursor += data.byteLength;
-            await stream.write(data);
-        };
-
-        this.close = async () => {
-            await stream.truncate(cursor);
-            return true;
-        };
-    }
-}
-
-export { Writer, FileWriter };
+export { Writer, FileWriter, MemoryWriter };

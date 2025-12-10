@@ -1,12 +1,9 @@
-import { Buffer } from 'node:buffer';
-import { FileHandle } from 'node:fs/promises';
-
 import { Column, DataTable } from '../data-table';
+import { DataSource } from '../io/data-source';
 
-const readSplat = async (fileHandle: FileHandle): Promise<DataTable> => {
+const readSplat = async (source: DataSource): Promise<DataTable> => {
     // Get file size to determine number of splats
-    const fileStats = await fileHandle.stat();
-    const fileSize = fileStats.size;
+    const fileSize = source.size;
 
     // Each splat is 32 bytes
     const BYTES_PER_SPLAT = 32;
@@ -48,16 +45,18 @@ const readSplat = async (fileHandle: FileHandle): Promise<DataTable> => {
     // Read data in chunks
     const chunkSize = 1024;
     const numChunks = Math.ceil(numSplats / chunkSize);
-    const chunkData = Buffer.alloc(chunkSize * BYTES_PER_SPLAT);
 
     for (let c = 0; c < numChunks; ++c) {
         const numRows = Math.min(chunkSize, numSplats - c * chunkSize);
         const bytesToRead = numRows * BYTES_PER_SPLAT;
+        const fileOffset = c * chunkSize * BYTES_PER_SPLAT;
 
-        const { bytesRead } = await fileHandle.read(chunkData, 0, bytesToRead);
-        if (bytesRead !== bytesToRead) {
+        const chunkData = await source.read(fileOffset, bytesToRead);
+        if (chunkData.byteLength !== bytesToRead) {
             throw new Error('Failed to read expected amount of data from .splat file');
         }
+
+        const dataView = new DataView(chunkData.buffer, chunkData.byteOffset, chunkData.byteLength);
 
         // Parse each splat in the chunk
         for (let r = 0; r < numRows; ++r) {
@@ -65,26 +64,26 @@ const readSplat = async (fileHandle: FileHandle): Promise<DataTable> => {
             const offset = r * BYTES_PER_SPLAT;
 
             // Read position (3 × float32)
-            const x = chunkData.readFloatLE(offset + 0);
-            const y = chunkData.readFloatLE(offset + 4);
-            const z = chunkData.readFloatLE(offset + 8);
+            const x = dataView.getFloat32(offset + 0, true);
+            const y = dataView.getFloat32(offset + 4, true);
+            const z = dataView.getFloat32(offset + 8, true);
 
             // Read scale (3 × float32)
-            const scaleX = chunkData.readFloatLE(offset + 12);
-            const scaleY = chunkData.readFloatLE(offset + 16);
-            const scaleZ = chunkData.readFloatLE(offset + 20);
+            const scaleX = dataView.getFloat32(offset + 12, true);
+            const scaleY = dataView.getFloat32(offset + 16, true);
+            const scaleZ = dataView.getFloat32(offset + 20, true);
 
             // Read color and opacity (4 × uint8)
-            const red = chunkData.readUInt8(offset + 24);
-            const green = chunkData.readUInt8(offset + 25);
-            const blue = chunkData.readUInt8(offset + 26);
-            const opacity = chunkData.readUInt8(offset + 27);
+            const red = chunkData[offset + 24];
+            const green = chunkData[offset + 25];
+            const blue = chunkData[offset + 26];
+            const opacity = chunkData[offset + 27];
 
             // Read rotation quaternion (4 × uint8)
-            const rot0 = chunkData.readUInt8(offset + 28);
-            const rot1 = chunkData.readUInt8(offset + 29);
-            const rot2 = chunkData.readUInt8(offset + 30);
-            const rot3 = chunkData.readUInt8(offset + 31);
+            const rot0 = chunkData[offset + 28];
+            const rot1 = chunkData[offset + 29];
+            const rot2 = chunkData[offset + 30];
+            const rot3 = chunkData[offset + 31];
 
             // Store position
             (columns[0].data as Float32Array)[splatIndex] = x;

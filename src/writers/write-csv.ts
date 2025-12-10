@@ -1,13 +1,12 @@
-import { FileHandle } from 'node:fs/promises';
-
 import { DataTable } from '../data-table';
+import { DataSink } from '../io/data-sink';
 
-const writeCsv = async (fileHandle: FileHandle, dataTable: DataTable) => {
-
+const writeCsv = async (sink: DataSink, dataTable: DataTable) => {
+    const encoder = new TextEncoder();
     const len = dataTable.numRows;
 
     // write header
-    await fileHandle.write(`${dataTable.columnNames.join(',')}\n`);
+    await sink.write(encoder.encode(`${dataTable.columnNames.join(',')}\n`));
 
     const columns = dataTable.columns.map(c => c.data);
 
@@ -18,7 +17,7 @@ const writeCsv = async (fileHandle: FileHandle, dataTable: DataTable) => {
             if (c) row += ',';
             row += columns[c][i];
         }
-        await fileHandle.write(`${row}\n`);
+        await sink.write(encoder.encode(`${row}\n`));
     }
 };
 

@@ -1,8 +1,8 @@
-import { Buffer } from 'node:buffer';
 import { FileHandle, open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { Column, DataTable } from '../data-table';
+import { DataSource, BufferSource } from '../io/data-source';
 import { ZipReader } from '../serialize/zip-reader';
 import { WebPCodec } from '../utils/webp-codec';
 
@@ -16,11 +16,23 @@ type Meta = {
     shN?: { count: number; bands: number; codebook: number[]; files: string[] };
 };
 
+/**
+ * Options for reading SOG files.
+ * For bundled .sog files, no additional options needed.
+ * For unbundled SOG directories in browser, provide companionFiles map.
+ */
+type ReadSogOptions = {
+    /** Source file path (for Node.js directory-based loading) */
+    sourcePath?: string;
+    /** Map of companion file names to their data (for browser unbundled loading) */
+    companionFiles?: Map<string, ArrayBuffer | Uint8Array>;
+};
+
 const readFileFully = async (fh: FileHandle): Promise<Uint8Array> => {
     const stat = await fh.stat();
-    const buf = Buffer.alloc(stat.size);
-    await fh.read(buf, 0, stat.size, 0);
-    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+    const buf = new Uint8Array(stat.size);
+    const { bytesRead } = await fh.read(buf, 0, stat.size, 0);
+    return new Uint8Array(buf.buffer, buf.byteOffset, bytesRead);
 };
 
 const decodeMeans = (lo: Uint8Array, hi: Uint8Array, count: number) => {
@@ -76,15 +88,18 @@ const sigmoidInv = (y: number) => {
     return Math.log(e / (1 - e));
 };
 
-const readSog = async (fileHandle: FileHandle, sourceName?: string): Promise<DataTable> => {
+const readSog = async (source: DataSource, options?: ReadSogOptions): Promise<DataTable> => {
     const decoder = await WebPCodec.create();
-    const stat = await fileHandle.stat();
+    const sourcePath = options?.sourcePath;
+    const companionFiles = options?.companionFiles;
 
-    // Helper to read from bundle or folder
+    // Helper to read from bundle, companion files map, or folder
     let entries: Map<string, Uint8Array> | null = null;
-    const lowerName = (sourceName ?? '').toLowerCase();
-    if (lowerName.endsWith('.sog')) {
-        const zr = new ZipReader(fileHandle, stat.size);
+    const lowerName = (sourcePath ?? '').toLowerCase();
+    const isBundled = lowerName.endsWith('.sog');
+
+    if (isBundled) {
+        const zr = new ZipReader(source, source.size);
         const list = await zr.list();
         entries = new Map();
         for (const e of list) {
@@ -94,12 +109,25 @@ const readSog = async (fileHandle: FileHandle, sourceName?: string): Promise<Dat
     }
 
     const load = async (name: string): Promise<Uint8Array> => {
+        // First check zip entries (bundled .sog)
         if (entries) {
             const v = entries.get(name);
             if (!v) throw new Error(`Missing entry '${name}' in sog`);
             return v;
         }
-        const fh = await open(join(dirname(sourceName ?? ''), name), 'r');
+
+        // Then check companion files map (browser unbundled)
+        if (companionFiles) {
+            const data = companionFiles.get(name);
+            if (!data) throw new Error(`Missing companion file '${name}'`);
+            return data instanceof Uint8Array ? data : new Uint8Array(data);
+        }
+
+        // Fall back to file system (Node.js unbundled)
+        if (!sourcePath) {
+            throw new Error(`Cannot load companion file '${name}': no source path or companion files provided`);
+        }
+        const fh = await open(join(dirname(sourcePath), name), 'r');
         try {
             return await readFileFully(fh);
         } finally {
@@ -247,4 +275,4 @@ const readSog = async (fileHandle: FileHandle, sourceName?: string): Promise<Dat
     return new DataTable(columns);
 };
 
-export { readSog };
+export { readSog, ReadSogOptions };

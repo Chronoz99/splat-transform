@@ -3,10 +3,12 @@ import { dirname, resolve } from 'node:path';
 
 import { version } from '../../package.json';
 import { Column, DataTable } from '../data-table';
-import { createDevice, enumerateAdapters, GpuDevice } from '../gpu/gpu-device';
+import { GpuDevice } from '../gpu/gpu-device';
+import { createDevice, enumerateAdapters } from '../gpu/node-gpu';
+import { DataSink, NodeFileSink, BufferSink } from '../io/data-sink';
 import { logger } from '../logger';
 import { generateOrdering } from '../ordering';
-import { FileWriter } from '../serialize/writer';
+import { Writer, FileWriter, MemoryWriter } from '../serialize/writer';
 import { ZipWriter } from '../serialize/zip-writer';
 import { Options } from '../types';
 import { kmeans } from '../utils/k-means';
@@ -110,11 +112,31 @@ const writeFile = async (filename: string, data: Uint8Array) => {
 let webPCodec: WebPCodec;
 let gpuDevice: GpuDevice;
 
-const writeSog = async (fileHandle: FileHandle, dataTable: DataTable, outputFilename: string, options: Options, indices = generateIndices(dataTable)) => {
+/**
+ * Options for writeSog function
+ */
+type WriteSogOptions = Options & {
+    /** For browser: collect output files in memory instead of writing to filesystem */
+    outputFiles?: Map<string, ArrayBuffer>;
+};
+
+const writeSog = async (
+    sink: DataSink,
+    dataTable: DataTable,
+    outputFilename: string,
+    options: WriteSogOptions,
+    indices = generateIndices(dataTable)
+) => {
     // initialize output stream
     const isBundle = outputFilename.toLowerCase().endsWith('.sog');
-    const fileWriter = isBundle && new FileWriter(fileHandle);
-    const zipWriter = fileWriter && new ZipWriter(fileWriter);
+    const outputFiles = options.outputFiles;  // For browser unbundled mode
+
+    // Create writer - use MemoryWriter for browser bundled mode, FileWriter for Node
+    let writer: Writer;
+    if (isBundle) {
+        writer = sink as Writer;  // DataSink is compatible with Writer interface
+    }
+    const zipWriter = isBundle ? new ZipWriter(writer) : null;
 
     const numRows = indices.length;
     const width = Math.ceil(Math.sqrt(numRows) / 4) * 4;
@@ -137,6 +159,9 @@ const writeSog = async (fileHandle: FileHandle, dataTable: DataTable, outputFile
 
         if (zipWriter) {
             await zipWriter.file(filename, webp);
+        } else if (outputFiles) {
+            // Browser unbundled mode - store in map
+            outputFiles.set(filename, webp.buffer.slice(webp.byteOffset, webp.byteOffset + webp.byteLength));
         } else {
             await writeFile(pathname, webp);
         }
@@ -405,10 +430,13 @@ const writeSog = async (fileHandle: FileHandle, dataTable: DataTable, outputFile
     if (zipWriter) {
         await zipWriter.file('meta.json', metaJson);
         await zipWriter.close();
-        await fileWriter.close();
+        await sink.close();
+    } else if (outputFiles) {
+        // Browser unbundled mode - store meta.json in map
+        outputFiles.set('meta.json', metaJson.buffer.slice(metaJson.byteOffset, metaJson.byteOffset + metaJson.byteLength));
     } else {
-        await fileHandle.write(metaJson);
+        await sink.write(metaJson);
     }
 };
 
-export { writeSog };
+export { writeSog, WriteSogOptions };

@@ -6,6 +6,7 @@ import { html, css, js } from '@playcanvas/supersplat-viewer';
 
 import { DataTable } from '../data-table';
 import { writeSog } from './write-sog';
+import { DataSink, NodeFileSink, BufferSink } from '../io/data-sink';
 import { Options } from '../types';
 
 type ViewerSettings = {
@@ -22,7 +23,7 @@ type ViewerSettings = {
     animTracks?: unknown[];
 };
 
-const writeHtml = async (fileHandle: FileHandle, dataTable: DataTable, outputFilename: string, options: Options) => {
+const writeHtml = async (sink: DataSink, dataTable: DataTable, outputFilename: string, options: Options) => {
     const pad = (text: string, spaces: number) => {
         const whitespace = ' '.repeat(spaces);
         return text.split('\n').map(line => whitespace + line).join('\n');
@@ -67,7 +68,9 @@ const writeHtml = async (fileHandle: FileHandle, dataTable: DataTable, outputFil
 
         // Write .sog file
         const sogFile = await open(sogPath, 'w');
-        await writeSog(sogFile, dataTable, sogPath, options);
+        const sogSink = new NodeFileSink(sogFile);
+        await writeSog(sogSink, dataTable, sogPath, options);
+        await sogSink.close();
         await sogFile.close();
 
         // Write CSS file
@@ -90,10 +93,13 @@ const writeHtml = async (fileHandle: FileHandle, dataTable: DataTable, outputFil
         // Bundled mode: embed everything in the HTML
         const tempSogPath = `${os.tmpdir()}/temp.sog`;
         const tempSog = await open(tempSogPath, 'w+');
-        await writeSog(tempSog, dataTable, tempSogPath, options);
+        const tempSogSink = new NodeFileSink(tempSog);
+        await writeSog(tempSogSink, dataTable, tempSogPath, options);
+        await tempSogSink.close();
         await tempSog.close();
         const openSog = await open(tempSogPath, 'r');
-        const sogData = Buffer.from(await openSog.readFile()).toString('base64');
+        const sogBuffer = await openSog.readFile();
+        const sogData = Buffer.from(sogBuffer).toString('base64');
         await openSog.close();
         await unlink(tempSogPath);
 
@@ -110,7 +116,7 @@ const writeHtml = async (fileHandle: FileHandle, dataTable: DataTable, outputFil
         .replace('.compressed.ply', '.sog');
     }
 
-    await fileHandle.write(new TextEncoder().encode(generatedHtml));
+    await sink.write(new TextEncoder().encode(generatedHtml));
 };
 
 export { writeHtml };
