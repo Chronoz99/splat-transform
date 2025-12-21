@@ -21,13 +21,14 @@ const shNames = new Array(45).fill('').map((_, i) => `f_rest_${i}`);
 const calcMinMax = (dataTable: DataTable, columnNames: string[], indices: Uint32Array) => {
     const columns = columnNames.map(name => dataTable.getColumnByName(name));
     const minMax = columnNames.map(() => [Infinity, -Infinity]);
-    const row: Record<string, number> = {};
+    // Direct array access optimization: pre-fetch column data arrays
+    const columnData = columns.map(col => col!.data);
 
     for (let i = 0; i < indices.length; ++i) {
-        const r = dataTable.getRow(indices[i], row, columns);
+        const idx = indices[i];
 
-        for (let j = 0; j < columnNames.length; ++j) {
-            const value = r[columnNames[j]];
+        for (let j = 0; j < columnData.length; ++j) {
+            const value = columnData[j][idx];
             if (value < minMax[j][0]) minMax[j][0] = value;
             if (value > minMax[j][1]) minMax[j][1] = value;
         }
@@ -183,20 +184,22 @@ const writeSogBrowser = async (
         return writeWebp(filename, data, w, h);
     };
 
-    const row: Record<string, number> = {};
-
     const writeMeans = async () => {
         const meansL = new Uint8Array(width * height * channels);
         const meansU = new Uint8Array(width * height * channels);
         const meansNames = ['x', 'y', 'z'];
         const meansMinMax = calcMinMax(dataTable, meansNames, indices).map(v => v.map(logTransform));
-        const meansColumns = meansNames.map(name => dataTable.getColumnByName(name));
-        for (let i = 0; i < indices.length; ++i) {
-            dataTable.getRow(indices[i], row, meansColumns);
+        // Direct array access optimization: pre-fetch column data arrays
+        const xData = dataTable.getColumnByName('x')!.data;
+        const yData = dataTable.getColumnByName('y')!.data;
+        const zData = dataTable.getColumnByName('z')!.data;
 
-            const x = 65535 * (logTransform(row.x) - meansMinMax[0][0]) / (meansMinMax[0][1] - meansMinMax[0][0]);
-            const y = 65535 * (logTransform(row.y) - meansMinMax[1][0]) / (meansMinMax[1][1] - meansMinMax[1][0]);
-            const z = 65535 * (logTransform(row.z) - meansMinMax[2][0]) / (meansMinMax[2][1] - meansMinMax[2][0]);
+        for (let i = 0; i < indices.length; ++i) {
+            const idx = indices[i];
+
+            const x = 65535 * (logTransform(xData[idx]) - meansMinMax[0][0]) / (meansMinMax[0][1] - meansMinMax[0][0]);
+            const y = 65535 * (logTransform(yData[idx]) - meansMinMax[1][0]) / (meansMinMax[1][1] - meansMinMax[1][0]);
+            const z = 65535 * (logTransform(zData[idx]) - meansMinMax[2][0]) / (meansMinMax[2][1] - meansMinMax[2][0]);
 
             const ti = layout(i, width);
 
@@ -221,16 +224,19 @@ const writeSogBrowser = async (
 
     const writeQuaternions = async () => {
         const quats = new Uint8Array(width * height * channels);
-        const quatNames = ['rot_0', 'rot_1', 'rot_2', 'rot_3'];
-        const quatColumns = quatNames.map(name => dataTable.getColumnByName(name));
+        // Direct array access optimization: pre-fetch column data arrays
+        const rot0Data = dataTable.getColumnByName('rot_0')!.data;
+        const rot1Data = dataTable.getColumnByName('rot_1')!.data;
+        const rot2Data = dataTable.getColumnByName('rot_2')!.data;
+        const rot3Data = dataTable.getColumnByName('rot_3')!.data;
         const q = [0, 0, 0, 0];
         for (let i = 0; i < indices.length; ++i) {
-            dataTable.getRow(indices[i], row, quatColumns);
+            const rowIdx = indices[i];
 
-            q[0] = row.rot_0;
-            q[1] = row.rot_1;
-            q[2] = row.rot_2;
-            q[3] = row.rot_3;
+            q[0] = rot0Data[rowIdx];
+            q[1] = rot1Data[rowIdx];
+            q[2] = rot2Data[rowIdx];
+            q[3] = rot3Data[rowIdx];
 
             const l = Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
 
