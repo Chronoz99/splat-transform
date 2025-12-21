@@ -3,18 +3,18 @@
  * This version only supports bundled .sog output (single file).
  */
 import { version } from '../../package.json';
-import { Column, DataTable } from '../data-table';
+import { ProgressCallback, ProgressStage } from '../browser';
+import { Column, DataTable } from '../data-table/data-table';
+import { sortMortonOrder } from '../data-table/morton-order';
 import { GpuDevice } from '../gpu/gpu-device';
 import { createGpuDevice } from '../gpu/gpu-factory';
 import { DataSink, BufferSink } from '../io/browser-data-sink';
-import { logger } from '../logger';
-import { generateOrdering } from '../ordering';
 import { ZipWriter } from '../serialize/zip-writer';
-import { kmeans } from '../utils/k-means';
+import { kmeans } from '../spatial/k-means';
+import { logger } from '../utils/logger';
 import { sigmoid } from '../utils/math';
 import { WebPCodec } from '../utils/webp-codec';
 
-import { ProgressCallback, ProgressStage } from '../browser';
 
 const shNames = new Array(45).fill('').map((_, i) => `f_rest_${i}`);
 
@@ -50,7 +50,7 @@ const generateIndices = (dataTable: DataTable) => {
     for (let i = 0; i < result.length; ++i) {
         result[i] = i;
     }
-    generateOrdering(dataTable, result);
+    sortMortonOrder(dataTable, result);
     return result;
 };
 

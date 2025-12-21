@@ -30,7 +30,7 @@ import { create, globals } from 'webgpu';
 
 import { GpuDevice, Application } from './gpu-device';
 import type { GpuFactory, GpuAdapterInfo } from './gpu-factory';
-import { logger } from '../logger';
+import { logger } from '../utils/logger';
 
 const initializeGlobals = () => {
     Object.assign(globalThis, globals);

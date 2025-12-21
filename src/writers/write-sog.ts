@@ -2,16 +2,16 @@ import { FileHandle, open } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 import { version } from '../../package.json';
-import { Column, DataTable } from '../data-table';
+import { Column, DataTable } from '../data-table/data-table';
+import { sortMortonOrder } from '../data-table/morton-order';
 import { GpuDevice } from '../gpu/gpu-device';
 import { createDevice, enumerateAdapters } from '../gpu/node-gpu';
 import { DataSink, NodeFileSink, BufferSink } from '../io/data-sink';
-import { logger } from '../logger';
-import { generateOrdering } from '../ordering';
 import { Writer, FileWriter, MemoryWriter } from '../serialize/writer';
 import { ZipWriter } from '../serialize/zip-writer';
+import { kmeans } from '../spatial/k-means';
 import { Options } from '../types';
-import { kmeans } from '../utils/k-means';
+import { logger } from '../utils/logger';
 import { sigmoid } from '../utils/math';
 import { WebPCodec } from '../utils/webp-codec';
 
@@ -49,7 +49,7 @@ const generateIndices = (dataTable: DataTable) => {
     for (let i = 0; i < result.length; ++i) {
         result[i] = i;
     }
-    generateOrdering(dataTable, result);
+    sortMortonOrder(dataTable, result);
     return result;
 };
 

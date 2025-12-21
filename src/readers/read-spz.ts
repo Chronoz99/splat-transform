@@ -1,4 +1,4 @@
-import { Column, DataTable } from '../data-table';
+import { Column, DataTable } from '../data-table/data-table';
 import { DataSource } from '../io/data-source';
 
 // See https://github.com/nianticlabs/spz for reference implementation

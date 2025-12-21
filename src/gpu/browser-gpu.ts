@@ -27,7 +27,7 @@ import {
 
 import { GpuDevice, Application } from './gpu-device';
 import type { GpuFactory, GpuAdapterInfo } from './gpu-factory';
-import { logger } from '../logger';
+import { logger } from '../utils/logger';
 
 /**
  * Check if WebGPU is available in the browser

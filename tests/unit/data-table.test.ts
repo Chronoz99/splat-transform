@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Column, DataTable } from '../../src/data-table';
+import { Column, DataTable } from '../../src/data-table/data-table';
 
 describe('DataTable', () => {
   it('should create a DataTable with columns', () => {

@@ -1,7 +1,7 @@
 import { FileHandle, open } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
-import { Column, DataTable } from '../data-table';
+import { Column, DataTable } from '../data-table/data-table';
 import { DataSource, BufferSource } from '../io/data-source';
 import { ZipReader } from '../serialize/zip-reader';
 import { WebPCodec } from '../utils/webp-codec';

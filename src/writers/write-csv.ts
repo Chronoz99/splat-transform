@@ -1,4 +1,4 @@
-import { DataTable } from '../data-table';
+import { DataTable } from '../data-table/data-table';
 import { DataSink } from '../io/data-sink';
 
 const writeCsv = async (sink: DataSink, dataTable: DataTable) => {

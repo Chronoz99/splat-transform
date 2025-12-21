@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 
 import { Vec3 } from 'playcanvas';
 
-import { Column, DataTable } from '../data-table';
+import { Column, DataTable } from '../data-table/data-table';
 import { DataSource, BufferSource } from '../io/data-source';
 import { Options } from '../types';
 

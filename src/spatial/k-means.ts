@@ -1,8 +1,8 @@
-import { Column, DataTable } from '../data-table';
-import { logger } from '../logger';
 import { KdTree } from './kd-tree';
+import { Column, DataTable } from '../data-table/data-table';
 import { GpuClustering } from '../gpu/gpu-clustering';
 import { GpuDevice } from '../gpu/gpu-device';
+import { logger } from '../utils/logger';
 
 const initializeCentroids = (dataTable: DataTable, centroids: DataTable, row: any) => {
     const chosenRows = new Set();
@@ -138,7 +138,10 @@ const kmeans = async (points: DataTable, k: number, iterations: number, device?:
     if (points.numRows < k) {
         return {
             centroids: points.clone(),
-            labels: new Array(points.numRows).fill(0).map((_, i) => i)
+            // use a typed array here so downstream code can rely on
+            // labels supporting subarray(), even in this early-return
+            // path used for very small datasets.
+            labels: new Uint32Array(points.numRows).map((_, i) => i)
         };
     }
 

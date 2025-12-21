@@ -1,4 +1,4 @@
-import { Column, DataTable } from '../data-table';
+import { Column, DataTable } from '../data-table/data-table';
 import { DataSource } from '../io/data-source';
 
 // Format configuration for different compression modes

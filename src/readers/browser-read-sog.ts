@@ -3,7 +3,7 @@
  * This version only supports bundled .sog files or explicit companion files.
  * Node.js filesystem fallback is not available.
  */
-import { Column, DataTable } from '../data-table';
+import { Column, DataTable } from '../data-table/data-table';
 import { DataSource, BufferSource } from '../io/browser-data-source';
 import { ZipReader } from '../serialize/zip-reader';
 import { WebPCodec } from '../utils/webp-codec';

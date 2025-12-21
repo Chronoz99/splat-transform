@@ -28,14 +28,12 @@
 
 import { Quat, Vec3 } from 'playcanvas';
 
-import { Column, DataTable, TypedArray } from './data-table';
+import { Column, DataTable, TypedArray } from './data-table/data-table';
 import { isGpuAvailable as checkGpuAvailable, enumerateGpuAdapters } from './gpu/gpu-factory';
 import { BufferSink, DataSink } from './io/browser-data-sink';
 import { BufferSource, BlobSource, DataSource } from './io/browser-data-source';
-import { logger } from './logger';
 import { ProcessAction, processDataTable } from './process';
 import { readSogBrowser } from './readers/browser-read-sog';
-import { isCompressedPly, decompressPly } from './readers/decompress-ply';
 import { readKsplat } from './readers/read-ksplat';
 import { readPly } from './readers/read-ply';
 import { readSplat } from './readers/read-splat';
@@ -55,6 +53,7 @@ import {
     EncryptedData,
     DeriveKeyOptions
 } from './utils/encryption';
+import { logger } from './utils/logger';
 import {
     ObfuscatedCrypto,
     createObfuscatedCrypto,
@@ -413,16 +412,8 @@ const readFromSource = async (
             return [await readSplat(source)];
         case 'sog':
             return [await readSogBrowser(source, { companionFiles })];
-        case 'ply': {
-            const ply = await readPly(source);
-            if (isCompressedPly(ply)) {
-                return [decompressPly(ply)];
-            }
-            if (ply.elements.length !== 1 || ply.elements[0].name !== 'vertex') {
-                throw new Error('Unsupported PLY structure');
-            }
-            return [ply.elements[0].dataTable];
-        }
+        case 'ply':
+            return [await readPly(source)];
         case 'spz':
             return [await readSpz(source)];
     }
