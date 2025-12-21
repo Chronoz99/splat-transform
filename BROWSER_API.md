@@ -49,6 +49,27 @@ export default defineConfig({
 
 **Rollup**: Configure similar to your current project setup.
 
+## Supported Formats
+
+| Input | Output | Notes |
+|-------|--------|-------|
+| `.ply` | `.ply` | Standard PLY format |
+| `.compressed.ply` | `.compressed.ply` | Compressed PLY with clustering |
+| `.sog` | `.sog` | PlayCanvas optimized format |
+| `.ksplat` | `.csv` | For data inspection |
+| `.splat` | | |
+| `.spz` | | |
+
+Convert between any supported input and output format:
+
+```typescript
+// Any input format → Any output format
+const result = await convert(inputFile, { outputFormat: 'sog' });
+const result = await convert(inputFile, { outputFormat: 'ply' });
+const result = await convert(inputFile, { outputFormat: 'compressed-ply' });
+const result = await convert(inputFile, { outputFormat: 'csv' });
+```
+
 ## Quick Start
 
 First, install from GitHub:
@@ -382,17 +403,22 @@ Filter splats based on criteria:
 // Remove NaN/Infinity values
 { type: 'nan' }
 
-// Bounding box filter
-{ type: 'box', min: [x, y, z], max: [x, y, z] }
+// Bounding box filter - keep splats within a box
+{ type: 'box', min: [-10, -10, -10], max: [10, 10, 10] }
 
-// Sphere filter
-{ type: 'sphere', center: [x, y, z], radius: number }
+// Sphere filter - keep splats within radius of a point
+{ type: 'sphere', center: [0, 0, 0], radius: 5.0 }
 
-// Value comparison
-{ type: 'value', column: string, comparator: 'lt' | 'lte' | 'gt' | 'gte' | 'eq' | 'neq', value: number }
+// Value comparison - filter by column values
+// Example: keep only splats with opacity > 0.5
+{ type: 'value', column: 'opacity', comparator: 'gt', value: 0.5 }
 
-// Filter SH bands (0-3)
-{ type: 'bands', value: 0 | 1 | 2 | 3 }
+// Spherical harmonics bands (0-3)
+// 0 = DC only (smallest file, flat colors)
+// 1 = 1st order (4 coeffs, basic shading)
+// 2 = 2nd order (9 coeffs, good quality)
+// 3 = 3rd order (16 coeffs, full quality)
+{ type: 'bands', value: 1 }  // Remove bands > 1 to reduce file size
 ```
 
 ### `DataTable`
